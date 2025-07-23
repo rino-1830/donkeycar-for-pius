@@ -19,7 +19,7 @@
 
 
 <FileChooserPopup>:
-    title: "Choose the directory"
+    title: "ディレクトリを選択"
     size_hint: 1.0, 1.0
     auto_dismiss: False
     pos_hint: {'center_x': .5, 'center_y': .5}
@@ -39,10 +39,10 @@
             pos_hint: {'center_x': .5, 'center_y': .5}
             spacing: 20
             Button:
-                text: "Cancel"
+                text: "キャンセル"
                 on_release: root.dismiss()
             Button:
-                text: "Load"
+                text: "読み込み"
                 on_release: root.load(file_chooser.selection)
                 disabled: file_chooser.selection==[]
 
@@ -52,7 +52,7 @@
     valign: 'middle'
 
 <ConfigManager>
-    title: 'Choose the car directory'
+    title: '車のディレクトリを選択'
     orientation: 'horizontal'
     on_config:
         app.tub_screen.ids.tub_loader.ids.tub_button.disabled = False
@@ -61,7 +61,7 @@
         app.pilot_screen.ids.pilot_loader_2.root_path = self.config.MODELS_PATH
         app.tub_screen.ids.status.text = 'Config loaded from' + self.file_path
     Button:
-        text: 'Load car directory'
+        text: '車のディレクトリを読み込む'
         size_hint_x: 0.5
         on_press: root.open_popup()
     AutoLabel:
@@ -69,11 +69,11 @@
         text: root.file_path
 
 <TubLoader>
-    title: 'Choose the tub directory'
+    title: 'Tub ディレクトリを選択'
     orientation: 'horizontal'
     Button:
         id: tub_button
-        text: 'Load tub'
+        text: 'Tub を読み込む'
         size_hint_x: 0.5
         disabled: True
         on_press: root.open_popup()
@@ -90,7 +90,7 @@
         text_size: self.size
         halign: 'left'
         valign: 'middle'
-        font_size: '14sp' # 14 if platform == 'linux' else 28
+        font_size: '14sp' # Linuxでは14、その他では28
         canvas.before:
             Color:
                 rgba: 0.17, 0.18, 0.25, 1
@@ -133,14 +133,14 @@
     GridLayout:
         cols: 2
         Label:
-            text: 'Record field'
+            text: '記録フィールド'
             size_hint_y: None
             height: common_height
         MySpinner:
             id: data_spinner
             size_hint_y: None
             height: common_height
-            text: root.auto_text if root.link else 'Add/remove'
+            text: root.auto_text if root.link else '追加/削除'
             on_text: root.add_remove()
             on_values: root.clear()
 
@@ -158,7 +158,7 @@
             values: ['0.25', '0.50', '1.00', '1.50', '2.00', '3.00', '4.00']
             on_text:
                 root.speed = float(self.text)
-                app.tub_screen.ids.status.text = f'Setting speed to {self.text} - you can also use the +/- keys.'
+                app.tub_screen.ids.status.text = f'{self.text} に速度設定 - +/- キーでも変更できます'
                 root.restart()
         Button:
             id: step_bwd
@@ -188,7 +188,7 @@
                 root.set_button_status(disabled=True)
     Button:
         size_hint_y: 0.3
-        text: 'Stop'
+        text: '停止'
         on_press:
             root.stop()
             root.set_button_status(disabled=False)
@@ -196,37 +196,37 @@
 <TubEditor>
     orientation: 'horizontal'
     on_lr:
-        msg = f'Setting range, '
-        if root.lr[0] < root.lr[1]: msg += (f'affecting records inside [{root.lr[0]}, {root.lr[1]}) ' + \
-        '- you can affect records outside by setting left > right')
-        else: msg += (f'affecting records outside ({root.lr[1]}, {root.lr[0]}] ' + \
-        '- you can affect records inside by setting left < right')
+        msg = f'範囲を設定: '
+        if root.lr[0] < root.lr[1]:
+            msg += (f'[{root.lr[0]}, {root.lr[1]}) のレコードに適用 ' + \
+            '左 > 右 にすると外側のレコードに適用できます')
+        else:
+            msg += (f'({root.lr[1]}, {root.lr[0]}] の外側のレコードに適用 ' + \
+            '左 < 右 にすると内側のレコードに適用できます')
         app.tub_screen.ids.status.text = msg
     Button:
-        text: 'Set left'
+        text: '左を設定'
         on_press: root.set_lr(True)
     Button:
-        text: 'Set right'
+        text: '右を設定'
         on_press: root.set_lr(False)
     Label:
         text: '[' + str(root.lr[0]) + ', ' + str(root.lr[1]) + ')'
-        # text: f'Index range [{root.lr[0]}, {root.lr[1]})'
+        # text: f'インデックス範囲 [{root.lr[0]}, {root.lr[1]})'
     Button:
-        text: 'Delete'
+        text: '削除'
         on_press:
             root.del_lr(True)
-            msg = f'Delete records {root.lr} - press <Reload tub> to see the ' \
-            + f'effect, but you can delete multiple ranges before doing so.'
+            msg = f'{root.lr} のレコードを削除 - <Reload tub> を押すと結果が確認できます。複数範囲をまとめて削除することもできます。'
             app.tub_screen.ids.status.text = msg
     Button:
-        text: 'Restore'
+        text: '復元'
         on_press:
             root.del_lr(False)
-            msg = f'Restore records {root.lr} - press <Reload tub> to see the ' \
-            + f'effect, but you can restore multiple ranges before doing so.'
+            msg = f'{root.lr} のレコードを復元 - <Reload tub> を押すと結果が確認できます。複数範囲をまとめて復元することもできます。'
             app.tub_screen.ids.status.text = msg
     Button:
-        text: 'Reload Tub'
+        text: 'Tub を再読み込み'
         on_press:
             app.tub_screen.ids.tub_loader.update_tub()
 
@@ -234,7 +234,7 @@
     id: tub_filter
     orientation: 'horizontal'
     Button:
-        text: 'Set filter'
+        text: 'フィルターを設定'
         size_hint_x: 0.2
         on_press: root.update_filter()
     TextInput:
@@ -256,10 +256,10 @@
 
 <DataPlot>:
     Button:
-        text: 'Reload Graph'
+        text: 'グラフを再読み込み'
         on_press: root.plot_from_current_bars()
     Button:
-        text: 'Browser Graph'
+        text: 'グラフをブラウズ'
         on_press: root.plot_from_current_bars(in_app=False)
 
 <StatusLabel@Label>:
@@ -268,7 +268,7 @@
     text_size: self.size
     halign: 'left'
     valign: 'bottom'
-    text: 'Donkey ready'
+    text: 'Donkey 準備完了'
 
 <TabBar>:
     size_hint_y: None
@@ -283,7 +283,7 @@
             size: self.size
     Button:
         id: tub_btn
-        text: 'Tub Manager'
+        text: 'Tub マネージャ'
         on_press:
             root.manager.current_screen.keys_enabled = False
             root.manager.current = 'tub'
@@ -291,7 +291,7 @@
             root.manager.current_screen.ids.tab_bar.disable_only(root.manager.current_screen.name)
     Button:
         id: train_btn
-        text: 'Trainer'
+        text: 'トレーナー'
         on_press:
             root.manager.current_screen.keys_enabled = False
             root.manager.current = 'train'
@@ -299,7 +299,7 @@
             root.manager.current_screen.ids.tab_bar.disable_only(root.manager.current_screen.name)
     Button:
         id: pilot_btn
-        text: 'Pilot Arena'
+        text: 'パイロットアリーナ'
         on_press:
             root.manager.current_screen.keys_enabled = False
             root.manager.current = 'pilot'
@@ -308,7 +308,7 @@
             root.manager.current_screen.ids.tab_bar.disable_only(root.manager.current_screen.name)
     Button:
         id: car_btn
-        text: 'Car Connector'
+        text: 'カーコネクター'
         on_press:
             root.manager.current_screen.keys_enabled = False
             root.manager.current = 'car'
@@ -352,7 +352,7 @@
             id: tub_filter
         TsPlot:
             id: graph
-            #size_hint_y: 3.0 if platform == 'linux' else None
+            #size_hint_y: Linuxでは3.0、その他ではNone
         DataPlot:
             id: data_plot
         StatusLabel:
@@ -365,7 +365,7 @@
     model_type: pilot_spinner.text
     Button:
         id: pilot_button
-        text: 'Choose pilot'
+        text: 'パイロットを選択'
         size_hint_x: 0.5
         disabled: True
         on_press:
@@ -374,7 +374,7 @@
         id: pilot_spinner
         pos_hint: {'center': (.5, .5)}
         size_hint_x: 0.5
-        text: 'Model type'
+        text: 'モデルタイプ'
         values: drive_models
     AutoLabel:
         id: pilot_file
@@ -400,7 +400,7 @@
                 orientation: 'vertical'
                 id: trafo_list
             Button:
-                text: "Close"
+                text: "閉じる"
                 size_hint_y: 0.1
                 on_release: root.dismiss()
 
@@ -463,7 +463,7 @@
             ToggleButton:
                 id: button_bright
                 size_hint_x: 0.5
-                text: 'Brightness {:4.2f}'.format(slider_bright.value)
+                text: '明るさ {:4.2f}'.format(slider_bright.value)
                 on_press: root.set_brightness(slider_bright.value)
             Slider:
                 id: slider_bright
@@ -474,7 +474,7 @@
             ToggleButton:
                 id: button_blur
                 size_hint_x: 0.5
-                text: 'Blur {:4.2f}'.format(slider_blur.value)
+                text: 'ぼかし {:4.2f}'.format(slider_blur.value)
                 on_press: root.set_blur(slider_blur.value)
             Slider:
                 id: slider_blur
@@ -485,15 +485,15 @@
         PaddedBoxLayout:
             Transformations:
                 id: pre_transformation
-                title: 'Pre-Augmentation Transformations'
-                text: 'Set pre transformation'
+                title: '前処理用変換'
+                text: '前処理変換を設定'
                 pilot_screen: root
                 is_post: False
                 on_press: self.open_popup()
             Transformations:
                 id: post_transformation
-                title: 'Post-Augmentation Transformations'
-                text: 'Set post transformation'
+                title: '後処理用変換'
+                text: '後処理変換を設定'
                 pilot_screen: root
                 is_post: True
                 on_press: self.open_popup()
@@ -517,14 +517,14 @@
     size_hint_x: None
     height: self.texture_size[1]
     width: self.texture_size[0]
-    #text_size: self.width, None
+    #text_size: self.width, None  # テキストサイズを幅に合わせる
 
 <TransferSelector>:
-    title: 'Choose transfer model'
+    title: '転移学習モデルを選択'
     orientation: 'horizontal'
     Button:
         id: transfer_button
-        text: 'Transfer model'
+        text: '転移モデル'
         size_hint_x: 0.5
         on_press: root.open_popup()
     AutoLabel:
@@ -540,7 +540,7 @@
         Label:
             size_hint_y: None
             height: common_height
-            text: 'Overwrite config: use json syntax, i.e. "abc" for strings and true/false for bool'
+            text: '設定を上書き: JSON構文を使用 (例: 文字列は "abc"、真偽値は true/false)'
         BoxLayout:
             size_hint_y: None
             height: layout_height
@@ -548,17 +548,17 @@
             spacing: layout_pad_x
             MySpinner:
                 id: cfg_spinner
-                text: 'select'
+                text: '選択'
                 values: root.value_list()
             TextInput:
                 id: cfg_overwrite
                 multiline: False
-                text: 'New value'
+                text: '新しい値'
                 on_text_validate: root.set_config_attribute(self.text)
         Label:
             size_hint_y: None
             height: common_height
-            text: 'Train pilot'
+            text: 'パイロットを学習'
         BoxLayout:
             size_hint_y: None
             height: layout_height
@@ -566,7 +566,7 @@
             spacing: layout_pad_x
             Label:
                 size_hint_x: 0.5
-                text: 'Model type'
+                text: 'モデルタイプ'
             MySpinner:
                 id: train_spinner
                 size_hint_x: 0.5
@@ -575,8 +575,8 @@
             TextInput:
                 id: comment
                 multiline: False
-                text: 'Comment'
-                on_text: app.train_screen.ids.status.text = f'Adding comment: {self.text}'
+                text: 'コメント'
+                on_text: app.train_screen.ids.status.text = f'コメント追加: {self.text}'
         BoxLayout:
             size_hint_y: None
             height: layout_height
@@ -584,10 +584,10 @@
             spacing: layout_pad_x
             MySpinner:
                 id: transfer_spinner
-                text: 'Choose transfer model'
+                text: '転移学習モデルを選択'
             ToggleButton:
                 id: train_button
-                text: 'Training running...' if self.state == 'down' else 'Train'
+                text: '学習実行中...' if self.state == 'down' else '学習開始'
                 on_press: root.train(train_spinner.text)
 
         ScrollableLabel:
@@ -604,24 +604,24 @@
             spacing: layout_pad_x
             MySpinner:
                 id: delete_spinner
-                text: 'Pilot'
+                text: 'パイロット'
             Button:
                 id: delete_btn
                 on_press:
                     root.database.delete_entry(delete_spinner.text)
                     root.reload_database()
-                text: 'Delete pilot'
+                text: 'パイロットを削除'
         BoxLayout:
             size_hint_y: None
             height: layout_height
             padding: layout_pad_xy
             spacing: layout_pad_x
             Label:
-                text: 'Group multiple tubs'
+                text: '複数のTubをまとめる'
             ToggleButton:
                 id: check
                 on_press: root.on_database(None, None)
-                text: 'On' if self.state == 'down' else 'Off'
+                text: 'オン' if self.state == 'down' else 'オフ'
         StatusLabel:
             id: status
 
@@ -633,29 +633,29 @@
             id: tab_bar
             manager: root.manager
         AutoLabel:
-            text: 'This screen is experimental and only works on Linux and OSX if ssh is configured to login without password. Please see the docs.'
+            text: 'この画面は実験的で、パスワードなしでログインできるSSHが設定されている場合のみLinuxとOSXで動作します。詳細はドキュメントを参照してください。'
             color: (1, 0.35, 0, 1)
         BoxLayout:
             size_hint_y: None
             height: common_height
             Label:
-                text: 'Connection status'
+                text: '接続状況'
             Label:
                 id: connected
-                text: 'Checking...'
+                text: '確認中...'
         Label:
-            #size_hint_y: None
-            #height: common_height
-            text: 'Pull tub from car -> pc'
+            #size_hint_y: None  # 高さの自動調整なし
+            #height: common_height  # 共通の高さを使用
+            text: '車からPCへTubを取得'
         BoxLayout:
             size_hint_y: None
             height: layout_height
             padding: layout_pad_xy
             spacing: layout_pad_x
             Label:
-                text: 'Car directory (hit return)'
+                text: '車ディレクトリ (Enter)'
             Label:
-                text: 'Select tub'
+                text: 'Tub を選択'
 
         BoxLayout:
             size_hint_y: None
@@ -671,7 +671,7 @@
                     root.update_pilots()
             MySpinner:
                 id: tub_dir_spinner
-                text: 'select'
+                text: '選択'
                 values: root.files
         BoxLayout:
             size_hint_y: None
@@ -681,21 +681,21 @@
             ToggleButton:
                 id: create_dir
                 size_hint_x: 0.49
-                text: 'Create new folder'
+                text: '新しいフォルダーを作成'
             Button:
                 id: pull_tub
                 size_hint_x: 0.49
-                text: 'Pull tub ' + tub_dir_spinner.text
+                text: 'Tub を取得 ' + tub_dir_spinner.text
                 on_press:
                     self.disabled = True
                     root.pull(tub_dir_spinner.text)
             ProgressBar:
                 id: pull_bar
-                #value: root.pull_bar
+                #value: root.pull_bar  # プログレス表示用
         Label:
-            #size_hint_y: None
-            #height: common_height
-            text: 'Push pilots from pc -> car'
+            #size_hint_y: None  # 高さ自動調整なし
+            #height: common_height  # 共通の高さを使用
+            text: 'PCから車へパイロットを送信'
         BoxLayout:
             size_hint_y: None
             height: layout_height
@@ -703,16 +703,16 @@
             spacing: layout_pad_x
             ToggleButton:
                 id: btn_h5
-                text: 'Sync h5'
+                text: 'h5 を同期'
             ToggleButton:
                 id: btn_savedmodel
-                text: 'Sync savedmodel'
+                text: 'savedmodel を同期'
             ToggleButton:
                 id: btn_tflite
-                text: 'Sync tflite'
+                text: 'tflite を同期'
             ToggleButton:
                 id: btn_trt
-                text: 'Sync tensorrt'
+                text: 'tensorrt を同期'
         BoxLayout:
             size_hint_y: None
             height: layout_height
@@ -721,18 +721,18 @@
             Button:
                 id: send_pilots
                 multiline: False
-                text: 'Push pilots'
+                text: 'パイロットを送信'
                 on_press:
                     self.disabled = True
                     root.send_pilot()
             ProgressBar:
                 id: push_bar
-                # value: root.push_bar
+                # value: root.push_bar  # プログレス表示用
 
         Label:
-            # size_hint_y: None
-            # height: common_height
-            text: 'Drive car'
+            # size_hint_y: None  # 高さの自動調整なし
+            # height: common_height  # 共通の高さを使用
+            text: '車を走行'
         BoxLayout:
             size_hint_y: None
             height: layout_height_double
@@ -744,7 +744,7 @@
                 values: drive_models
             MySpinner:
                 id: pilot_spinner
-                text: 'No pilot'
+                text: 'パイロットなし'
                 values: ['No pilot'] + root.pilots
         BoxLayout:
             size_hint_y: None
@@ -753,14 +753,14 @@
             spacing: layout_pad_x
             Button:
                 id: drive_btn
-                text: 'Drive'
+                text: '走行'
                 on_press:
                     root.drive()
                     self.disabled = True
                     stop_btn.disabled = False
             Button:
                 id: stop_btn
-                text: 'Stop'
+                text: '停止'
                 disabled: True
                 on_press:
                     root.stop()

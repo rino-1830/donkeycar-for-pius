@@ -1,3 +1,5 @@
+"""Kivy を用いた DonkeyCar 管理 UI モジュール."""
+
 import json
 import re
 import time
@@ -46,15 +48,26 @@ Logger.propagate = False
 
 Builder.load_file(os.path.join(os.path.dirname(__file__), 'ui.kv'))
 Window.clearcolor = (0.2, 0.2, 0.2, 1)
-LABEL_SPINNER_TEXT = 'Add/remove'
+LABEL_SPINNER_TEXT = '追加/削除'
 
-# Data struct to show tub field in the progress bar, containing the name,
-# the name of the maximum value in the config file and if it is centered.
+# プログレスバーに表示するフィールドの情報を保持するデータ構造。
+# フィールド名、設定ファイル内の最大値の識別子、中央寄せかどうかを含む。
 FieldProperty = namedtuple('FieldProperty',
                            ['field', 'max_value_id', 'centered'])
 
 
 def get_norm_value(value, cfg, field_property, normalised=True):
+    """値を正規化または逆正規化して返す。
+
+    Args:
+        value (float): 変換対象の値。
+        cfg: 設定オブジェクト。
+        field_property (FieldProperty): フィールドの設定。
+        normalised (bool): ``True`` なら値を正規化、``False`` なら元に戻す。
+
+    Returns:
+        float: 変換後の値。
+    """
     max_val_key = field_property.max_value_id
     max_value = getattr(cfg, max_val_key, 1.0)
     out_val = value / max_value if normalised else value * max_value
@@ -62,23 +75,35 @@ def get_norm_value(value, cfg, field_property, normalised=True):
 
 
 def tub_screen():
+    """現在実行中のアプリから ``TubScreen`` を取得する。"""
     return App.get_running_app().tub_screen if App.get_running_app() else None
 
 
 def pilot_screen():
+    """現在実行中のアプリから ``PilotScreen`` を取得する。"""
     return App.get_running_app().pilot_screen if App.get_running_app() else None
 
 
 def train_screen():
+    """現在実行中のアプリから ``TrainScreen`` を取得する。"""
     return App.get_running_app().train_screen if App.get_running_app() else None
 
 
 def car_screen():
+    """現在実行中のアプリから ``CarScreen`` を取得する。"""
     return App.get_running_app().car_screen if App.get_running_app() else None
 
 
 def recursive_update(target, source):
-    """ Recursively update dictionary """
+    """辞書を再帰的に更新する。
+
+    Args:
+        target (dict): 更新対象の辞書。
+        source (dict): 変更を含む辞書。
+
+    Returns:
+        bool: 両方が辞書なら ``True``、それ以外は ``False``。
+    """
     if isinstance(target, dict) and isinstance(source, dict):
         for k, v in source.items():
             v_t = target.get(k)
@@ -90,8 +115,7 @@ def recursive_update(target, source):
 
 
 def decompose(field):
-    """ Function to decompose a string vector field like 'gyroscope_1' into a
-        tuple ('gyroscope', 1) """
+    """'gyroscope_1' のようなベクトル名を ``('gyroscope', 1)`` に分解する。"""
     field_split = field.split('_')
     if len(field_split) > 1 and field_split[-1].isdigit():
         return '_'.join(field_split[:-1]), int(field_split[-1])
@@ -99,11 +123,9 @@ def decompose(field):
 
 
 class RcFileHandler:
-    """ This handles the config file which stores the data, like the field
-        mapping for displaying of bars and last opened car, tub directory. """
+    """フィールドの表示設定や最後に開いたディレクトリなどを保存する設定ファイルを扱うクラス。"""
 
-    # These entries are expected in every tub, so they don't need to be in
-    # the file
+    # これらのエントリーはすべての Tub に存在するため、設定ファイルには不要
     known_entries = [
         FieldProperty('user/angle', '', centered=True),
         FieldProperty('user/throttle', '', centered=False),
@@ -112,6 +134,11 @@ class RcFileHandler:
     ]
 
     def __init__(self, file_path='~/.donkeyrc'):
+        """インスタンスを初期化する。
+
+        Args:
+            file_path (str): 設定ファイルのパス。
+        """
         self.file_path = os.path.expanduser(file_path)
         self.data = self.create_data()
         recursive_update(self.data, self.read_file())
@@ -119,42 +146,44 @@ class RcFileHandler:
 
         def exit_hook():
             self.write_file()
-        # Automatically save config when program ends
+        # プログラム終了時に自動で設定を保存する
         atexit.register(exit_hook)
 
     def create_field_properties(self):
-        """ Merges known field properties with the ones from the file """
+        """既知のフィールド設定とファイルの設定を統合する。"""
         field_properties = {entry.field: entry for entry in self.known_entries}
         field_list = self.data.get('field_mapping')
         if field_list is None:
             field_list = {}
         for entry in field_list:
             assert isinstance(entry, dict), \
-                'Dictionary required in each entry in the field_mapping list'
+                'field_mapping の各エントリーには辞書が必要です'
             field_property = FieldProperty(**entry)
             field_properties[field_property.field] = field_property
         return field_properties
 
     def create_data(self):
+        """初期データを生成する。"""
         data = dict()
         data['user_pilot_map'] = {'user/throttle': 'pilot/throttle',
                                   'user/angle': 'pilot/angle'}
         return data
 
     def read_file(self):
+        """設定ファイルを読み込む。"""
         if os.path.exists(self.file_path):
             with open(self.file_path) as f:
                 data = yaml.load(f, Loader=yaml.FullLoader)
-                Logger.info(f'Donkeyrc: Donkey file {self.file_path} loaded.')
+                Logger.info(f'Donkeyrc: 設定ファイル {self.file_path} を読み込みました')
                 return data
         else:
-            Logger.warn(f'Donkeyrc: Donkey file {self.file_path} does not '
-                        f'exist.')
+            Logger.warn(f'Donkeyrc: 設定ファイル {self.file_path} が存在しません')
             return {}
 
     def write_file(self):
+        """現在の設定をファイルへ書き出す。"""
         if os.path.exists(self.file_path):
-            Logger.info(f'Donkeyrc: Donkey file {self.file_path} updated.')
+            Logger.info(f'Donkeyrc: 設定ファイル {self.file_path} を更新しました')
         with open(self.file_path, mode='w') as f:
             self.data['time_stamp'] = datetime.now()
             data = yaml.dump(self.data, f)
@@ -176,15 +205,15 @@ class MySpinner(Spinner):
 
 
 class FileChooserPopup(Popup):
-    """ File Chooser popup window"""
+    """ファイル選択用のポップアップウィンドウ。"""
     load = ObjectProperty()
     root_path = StringProperty()
     filters = ListProperty()
 
 
 class FileChooserBase:
-    """ Base class for file chooser widgets"""
-    file_path = StringProperty("No file chosen")
+    """ファイル選択ウィジェットの基底クラス。"""
+    file_path = StringProperty("ファイルが選択されていません")
     popup = ObjectProperty(None)
     root_path = os.path.expanduser('~')
     title = StringProperty(None)
@@ -196,18 +225,18 @@ class FileChooserBase:
         self.popup.open()
 
     def load(self, selection):
-        """ Method to load the chosen file into the path and call an action"""
+        """選択したファイルを ``file_path`` に設定し処理を実行する。"""
         self.file_path = str(selection[0])
         self.popup.dismiss()
         self.load_action()
 
     def load_action(self):
-        """ Virtual method to run when file_path has been updated """
+        """``file_path`` 更新時に実行される仮想メソッド。"""
         pass
 
 
 class ConfigManager(BoxLayout, FileChooserBase):
-    """ Class to mange loading of the config file from the car directory"""
+    """車両ディレクトリから設定ファイルを読み込むクラス。"""
     config = ObjectProperty(None)
     file_path = StringProperty(rc_handler.data.get('car_dir', ''))
 
@@ -217,7 +246,7 @@ class ConfigManager(BoxLayout, FileChooserBase):
             try:
                 path = os.path.join(self.file_path, 'config.py')
                 self.config = load_config(path)
-                # If load successful, store into app config
+                # 読み込みに成功したら設定に保存
                 rc_handler.data['car_dir'] = self.file_path
             except FileNotFoundError:
                 Logger.error(f'Config: Directory {self.file_path} has no '
@@ -227,42 +256,41 @@ class ConfigManager(BoxLayout, FileChooserBase):
 
 
 class TubLoader(BoxLayout, FileChooserBase):
-    """ Class to manage loading or reloading of the Tub from the tub directory.
-        Loading triggers many actions on other widgets of the app. """
+    """Tub を読み込み直す際に他のウィジェットも更新するクラス。"""
     file_path = StringProperty(rc_handler.data.get('last_tub', ''))
     tub = ObjectProperty(None)
     len = NumericProperty(1)
     records = None
 
     def load_action(self):
-        """ Update tub from the file path"""
+        """``file_path`` を基に Tub を読み込む。"""
         if self.update_tub():
-            # If update successful, store into app config
+            # 更新に成功したらアプリ設定へ保存する
             rc_handler.data['last_tub'] = self.file_path
 
     def update_tub(self, event=None):
         if not self.file_path:
             return False
-        # If config not yet loaded return
+        # まだ設定が読み込まれていなければ戻る
         cfg = tub_screen().ids.config_manager.config
         if not cfg:
             return False
-        # At least check if there is a manifest file in the tub path
+        # 少なくとも tub パスに manifest.json があるか確認する
         if not os.path.exists(os.path.join(self.file_path, 'manifest.json')):
-            tub_screen().status(f'Path {self.file_path} is not a valid tub.')
+            tub_screen().status(f'パス {self.file_path} は有効な tub ではありません')
             return False
         try:
             if self.tub:
                 self.tub.close()
             self.tub = Tub(self.file_path)
         except Exception as e:
-            tub_screen().status(f'Failed loading tub: {str(e)}')
+            tub_screen().status(f'チューブの読み込みに失敗しました: {str(e)}')
             return False
-        # Check if filter is set in tub screen
+        # Tub 画面でフィルタが設定されているか確認する
         # expression = tub_screen().ids.tub_filter.filter_expression
         train_filter = getattr(cfg, 'TRAIN_FILTER', None)
 
-        # Use filter, this defines the function
+        # フィルタを適用するための関数を定義
         def select(underlying):
             if not train_filter:
                 return True
@@ -281,9 +309,9 @@ class TubLoader(BoxLayout, FileChooserBase):
         if self.len > 0:
             tub_screen().index = 0
             tub_screen().ids.data_plot.update_dataframe_from_tub()
-            msg = f'Loaded tub {self.file_path} with {self.len} records'
+            msg = f'{self.file_path} を読み込みました ({self.len} 件のレコード)'
         else:
-            msg = f'No records in tub {self.file_path}'
+            msg = f'{self.file_path} にはレコードがありません'
         tub_screen().status(msg)
         return True
 
@@ -297,7 +325,7 @@ class LabelBar(BoxLayout):
     msg = ''
 
     def update(self, record):
-        """ This function is called everytime the current record is updated"""
+        """現在のレコードが更新されるたびに呼び出される。"""
         if not record:
             return
         field, index = decompose(self.field)
@@ -305,7 +333,7 @@ class LabelBar(BoxLayout):
             val = record.underlying[field]
             if index is not None:
                 val = val[index]
-            # Update bar if a field property for this field is known
+            # フィールド設定が存在する場合はバーを更新
             if self.field_property:
                 norm_value = get_norm_value(val, self.config,
                                             self.field_property)
@@ -329,8 +357,7 @@ class DataPanel(BoxLayout):
     """ Data panel widget that contains the label/bar widgets and the drop
         down menu to select/deselect fields."""
     record = ObjectProperty()
-    # dual mode is used in the pilot arena where we only show angle and
-    # throttle or speed
+    # パイロット比較画面では角度とスロットル（または速度）のみを表示する二重モードを使用
     dual_mode = BooleanProperty(False)
     auto_text = StringProperty(LABEL_SPINNER_TEXT)
     throttle_field = StringProperty('user/throttle')
@@ -342,18 +369,16 @@ class DataPanel(BoxLayout):
         self.screen = ObjectProperty()
 
     def add_remove(self):
-        """ Method to add or remove a LabelBar. Depending on the value of the
-            drop down menu the LabelBar is added if it is not present otherwise
-            removed."""
+        """ドロップダウンの選択に応じて ``LabelBar`` を追加または削除する。"""
         field = self.ids.data_spinner.text
         if field is LABEL_SPINNER_TEXT:
             return
         if field in self.labels and not self.dual_mode:
             self.remove_widget(self.labels[field])
             del(self.labels[field])
-            self.screen.status(f'Removing {field}')
+            self.screen.status(f'{field} を削除します')
         else:
-            # in dual mode replace the second entry with the new one
+            # 二重モードでは2番目の項目を新しいものと入れ替える
             if self.dual_mode and len(self.labels) == 2:
                 k, v = list(self.labels.items())[-1]
                 self.remove_widget(v)
@@ -366,14 +391,14 @@ class DataPanel(BoxLayout):
             lb.update(self.record)
             if len(self.labels) == 2:
                 self.throttle_field = field
-            self.screen.status(f'Adding {field}')
+            self.screen.status(f'{field} を追加します')
         if self.screen.name == 'tub':
             self.screen.ids.data_plot.plot_from_current_bars()
         self.ids.data_spinner.text = LABEL_SPINNER_TEXT
         self.auto_text = field
 
     def on_record(self, obj, record):
-        """ Kivy function that is called every time self.record changes"""
+        """``self.record`` が更新されるたびに呼び出される Kivy のフック。"""
         for v in self.labels.values():
             v.update(record)
 
@@ -390,7 +415,7 @@ class FullImage(Image):
         self.core_image = None
 
     def update(self, record):
-        """ This method is called ever time a record gets updated. """
+        """レコードが更新されるたびに画像を再描画する。"""
         try:
             img_arr = self.get_image(record)
             pil_image = PilImage.fromarray(img_arr)
@@ -409,7 +434,7 @@ class FullImage(Image):
 
 
 class ControlPanel(BoxLayout):
-    """ Class for control panel navigation. """
+    """コントロールパネルの操作をまとめたクラス。"""
     screen = ObjectProperty()
     speed = NumericProperty(1.0)
     record_display = StringProperty()
@@ -417,15 +442,13 @@ class ControlPanel(BoxLayout):
     fwd = None
 
     def start(self, fwd=True, continuous=False):
-        """
-        Method to cycle through records if either single <,> or continuous
-        <<, >> buttons are pressed
-        :param fwd:         If we go forward or backward
-        :param continuous:  If we do <<, >> or <, >
-        :return:            None
-        """
-        # this widget it used in two screens, so reference the original location
-        # of the config which is the config manager in the tub screen
+        """レコードを順送り／逆送りする。
+
+        Args:
+            fwd (bool): 前進するか後退するか。
+            continuous (bool): ``True`` なら連続再生。"""
+        # このウィジェットは2つの画面で使われるため、設定は tub 画面の
+        # ConfigManager を参照する
         cfg = tub_screen().ids.config_manager.config
         hz = cfg.DRIVE_LOOP_HZ if cfg else 20
         time.sleep(0.1)
@@ -439,15 +462,9 @@ class ControlPanel(BoxLayout):
         self.clock = Clock.schedule_interval(call, cycle_time)
 
     def step(self, fwd=True, continuous=False, *largs):
-        """
-        Updating a single step and cap/floor the index so we stay w/in the tub.
-        :param fwd:         If we go forward or backward
-        :param continuous:  If we are in continuous mode <<, >>
-        :param largs:       dummy
-        :return:            None
-        """
+        """1 ステップ進めてインデックスを範囲内に保つ。"""
         if self.screen.index is None:
-            self.screen.status("No tub loaded")
+            self.screen.status("Tub が読み込まれていません")
             return
         new_index = self.screen.index + (1 if fwd else -1)
         if new_index >= tub_screen().ids.tub_loader.len:
@@ -455,12 +472,12 @@ class ControlPanel(BoxLayout):
         elif new_index < 0:
             new_index = tub_screen().ids.tub_loader.len - 1
         self.screen.index = new_index
-        msg = f'Donkey {"run" if continuous else "step"} ' \
-              f'{"forward" if fwd else "backward"}'
+        msg = f'Donkey を{"連続実行" if continuous else "1 ステップ"} ' \
+              f'{"前進" if fwd else "後退"}'
         if not continuous:
-            msg += f' - you can also use {"<right>" if fwd else "<left>"} key'
+            msg += f' - {"→" if fwd else "←"} キーでも操作できます'
         else:
-            msg += ' - you can toggle run/stop with <space>'
+            msg += ' - <space> で実行/停止を切り替えます'
         self.screen.status(msg)
 
     def stop(self):
@@ -474,7 +491,7 @@ class ControlPanel(BoxLayout):
             self.start(self.fwd, True)
 
     def update_speed(self, up=True):
-        """ Method to update the speed on the controller"""
+        """コントローラーの速度設定を変更する。"""
         values = self.ids.control_spinner.values
         idx = values.index(self.ids.control_spinner.text)
         if up and idx < len(values) - 1:
@@ -483,17 +500,17 @@ class ControlPanel(BoxLayout):
             self.ids.control_spinner.text = values[idx - 1]
 
     def set_button_status(self, disabled=True):
-        """ Method to disable(enable) all buttons. """
+        """全てのボタンの有効／無効を切り替える。"""
         self.ids.run_bwd.disabled = self.ids.run_fwd.disabled = \
             self.ids.step_fwd.disabled = self.ids.step_bwd.disabled = disabled
 
     def on_keyboard(self, key, scancode):
-        """ Method to chack with keystroke has ben sent. """
+        """キー入力を処理する。"""
         if key == ' ':
             if self.clock and self.clock.is_triggered:
                 self.stop()
                 self.set_button_status(disabled=False)
-                self.screen.status('Donkey stopped')
+                self.screen.status('Donkey を停止しました')
             else:
                 self.start(continuous=True)
                 self.set_button_status(disabled=True)
@@ -512,18 +529,17 @@ class PaddedBoxLayout(BoxLayout):
 
 
 class TubEditor(PaddedBoxLayout):
-    """ Tub editor widget. Contains left/right index interval and the
-        manipulator buttons for deleting / restoring and reloading """
+    """Tub の削除・復元や再読込を行う編集ウィジェット。"""
     lr = ListProperty([0, 0])
 
     def set_lr(self, is_l=True):
-        """ Sets left or right range to the current tub record index """
+        """現在のレコード番号を左または右の範囲に設定する。"""
         if not tub_screen().current_record:
             return
         self.lr[0 if is_l else 1] = tub_screen().current_record.underlying['_index']
 
     def del_lr(self, is_del):
-        """ Deletes or restores records in chosen range """
+        """指定した範囲のレコードを削除または復元する。"""
         tub = tub_screen().ids.tub_loader.tub
         if self.lr[1] >= self.lr[0]:
             selected = list(range(*self.lr))
@@ -535,21 +551,21 @@ class TubEditor(PaddedBoxLayout):
 
 
 class TubFilter(PaddedBoxLayout):
-    """ Tub filter widget. """
+    """Tub のレコードをフィルタリングするウィジェット。"""
     filter_expression = StringProperty(None)
     record_filter = StringProperty(rc_handler.data.get('record_filter', ''))
 
     def update_filter(self):
         filter_text = self.ids.record_filter.text
         config = tub_screen().ids.config_manager.config
-        # empty string resets the filter
+        # 空文字列ならフィルターを解除
         if filter_text == '':
             self.record_filter = ''
             self.filter_expression = ''
             rc_handler.data['record_filter'] = self.record_filter
             if hasattr(config, 'TRAIN_FILTER'):
                 delattr(config, 'TRAIN_FILTER')
-            tub_screen().status(f'Filter cleared')
+            tub_screen().status('フィルターをクリアしました')
             return
         filter_expression = self.create_filter_string(filter_text)
         try:
@@ -557,33 +573,34 @@ class TubFilter(PaddedBoxLayout):
             filter_func_text = f"""def filter_func(record): 
                                        return {filter_expression}       
                                 """
-            # creates the function 'filter_func'
+            # ここで関数 'filter_func' を生成する
             ldict = {}
             exec(filter_func_text, globals(), ldict)
             filter_func = ldict['filter_func']
             res = filter_func(record)
-            status = f'Filter result on current record: {res}'
+            status = f'現在のレコードに対するフィルター結果: {res}'
             if isinstance(res, bool):
                 self.record_filter = filter_text
                 self.filter_expression = filter_expression
                 rc_handler.data['record_filter'] = self.record_filter
                 setattr(config, 'TRAIN_FILTER', filter_func)
             else:
-                status += ' - non bool expression can\'t be applied'
-            status += ' - press <Reload tub> to see effect'
+                status += ' - 真偽値を返さない式は適用できません'
+            status += ' - 効果を見るには <Reload tub> を押してください'
             tub_screen().status(status)
         except Exception as e:
-            tub_screen().status(f'Filter error on current record: {e}')
+            tub_screen().status(f'フィルター処理でエラー: {e}')
 
     @staticmethod
     def create_filter_string(filter_text, record_name='record'):
-        """ Converts text like 'user/angle' into 'record.underlying['user/angle']
-        so that it can be used in a filter. Will replace only expressions that
-        are found in the tub inputs list.
+        """フィルター式内のフィールド名を ``record.underlying`` 形式へ変換する。
 
-        :param filter_text: input text like 'user/throttle > 0.1'
-        :param record_name: name of the record in the expression
-        :return:            updated string that has all input fields wrapped
+        Args:
+            filter_text (str): 例 ``'user/throttle > 0.1'`` のような文字列。
+            record_name (str): レコード変数の名称。
+
+        Returns:
+            str: 変換された文字列。
         """
         for field in tub_screen().current_record.underlying.keys():
             field_list = filter_text.split(field)
@@ -594,16 +611,14 @@ class TubFilter(PaddedBoxLayout):
 
 
 class DataPlot(PaddedBoxLayout):
-    """ Data plot panel which embeds matplotlib interactive graph"""
+    """matplotlib のインタラクティブグラフを表示するパネル。"""
     df = ObjectProperty(force_dispatch=True, allownone=True)
 
     def plot_from_current_bars(self, in_app=True):
-        """ Plotting from current selected bars. The DataFrame for plotting
-            should contain all bars except for strings fields and all data is
-            selected if bars are empty.  """
+        """選択されたバーからグラフを描画する。"""
         tub = tub_screen().ids.tub_loader.tub
         field_map = dict(zip(tub.manifest.inputs, tub.manifest.types))
-        # Use selected fields or all fields if nothing is slected
+        # 選択されているフィールドがなければすべてのフィールドを使用
         all_cols = tub_screen().ids.data_panel.labels.keys() or self.df.columns
         cols = [c for c in all_cols if decompose(c)[0] in field_map
                 and field_map[decompose(c)[0]] not in ('image_array', 'str')]
@@ -611,7 +626,7 @@ class DataPlot(PaddedBoxLayout):
         df = self.df[cols]
         if df is None:
             return
-        # Don't plot the milliseconds time stamp as this is a too big number
+        # ミリ秒のタイムスタンプは値が大きすぎるためプロットしない
         df = df.drop(labels=['_timestamp_ms'], axis=1, errors='ignore')
 
         if in_app:
@@ -622,8 +637,7 @@ class DataPlot(PaddedBoxLayout):
             fig.show()
 
     def unravel_vectors(self):
-        """ Unravels vector and list entries in tub which are created
-            when the DataFrame is created from a list of records"""
+        """ベクトルやリスト型の項目を展開する。"""
         manifest = tub_screen().ids.tub_loader.tub.manifest
         for k, v in zip(manifest.inputs, manifest.types):
             if v == 'vector' or v == 'list':
@@ -634,9 +648,7 @@ class DataPlot(PaddedBoxLayout):
                 self.df.drop(k, axis=1, inplace=True)
 
     def update_dataframe_from_tub(self):
-        """ Called from TubManager when a tub is reloaded/recreated. Fills
-            the DataFrame from records, and updates the dropdown menu in the
-            data panel."""
+        """Tub の再読み込み時に DataFrame を作成し UI を更新する。"""
         generator = (t.underlying for t in tub_screen().ids.tub_loader.records)
         self.df = pd.DataFrame(generator).dropna()
         to_drop = {'cam/image_array'}
@@ -648,9 +660,11 @@ class DataPlot(PaddedBoxLayout):
 
 
 class TabBar(BoxLayout):
+    """タブボタンの有効・無効を制御する。"""
     manager = ObjectProperty(None)
 
     def disable_only(self, bar_name):
+        """指定したバーのみ有効にする。"""
         this_button_name = bar_name + '_btn'
         for button_name, button in self.ids.items():
             button.disabled = button_name == this_button_name
@@ -667,13 +681,13 @@ class TubScreen(Screen):
         self.ids.tub_loader.update_tub()
 
     def on_index(self, obj, index):
-        """ Kivy method that is called if self.index changes"""
+        """``self.index`` が変化した際に呼ばれる。"""
         if index >= 0:
             self.current_record = self.ids.tub_loader.records[index]
             self.ids.slider.value = index
 
     def on_current_record(self, obj, record):
-        """ Kivy method that is called if self.current_record changes."""
+        """``self.current_record`` が変化した際に呼ばれる。"""
         self.ids.img.update(record)
         i = record.underlying['_index']
         self.ids.control_panel.record_display = f"Record {i:06}"
@@ -687,7 +701,7 @@ class TubScreen(Screen):
 
 
 class PilotLoader(BoxLayout, FileChooserBase):
-    """ Class to mange loading of the config file from the car directory"""
+    """パイロットモデルのロードを管理するクラス。"""
     num = StringProperty()
     model_type = StringProperty()
     pilot = ObjectProperty(None)
@@ -707,7 +721,7 @@ class PilotLoader(BoxLayout, FileChooserBase):
                 Logger.error(f'Failed loading {self.file_path}: {e}')
 
     def on_model_type(self, obj, model_type):
-        """ Kivy method that is called if self.model_type changes. """
+        """``self.model_type`` が変更された際に呼び出される。"""
         if self.model_type and self.model_type != 'Model type':
             cfg = tub_screen().ids.config_manager.config
             if cfg:
@@ -721,13 +735,13 @@ class PilotLoader(BoxLayout, FileChooserBase):
                     self.filters = ['*.h5', '*.savedmodel']
 
     def on_num(self, e, num):
-        """ Kivy method that is called if self.num changes. """
+        """``self.num`` が変更された際に呼び出される。"""
         self.file_path = rc_handler.data.get('pilot_' + self.num, '')
         self.model_type = rc_handler.data.get('model_type_' + self.num, '')
 
 
 class OverlayImage(FullImage):
-    """ Widget to display the image and the user/pilot data for the tub. """
+    """ユーザーとパイロットの情報を重ねて表示するウィジェット。"""
     pilot = ObjectProperty()
     pilot_record = ObjectProperty()
     throttle_field = StringProperty('user/throttle')
@@ -762,7 +776,7 @@ class OverlayImage(FullImage):
 
         output = (0, 0)
         try:
-            # Not each model is supported in each interpreter
+            # すべてのモデルがすべてのインタープリタで動作するわけではない
             output = self.pilot.run(aug_img_arr)
         except Exception as e:
             Logger.error(e)
@@ -771,7 +785,7 @@ class OverlayImage(FullImage):
         MakeMovie.draw_line_into_image(output[0], output[1], True, img_arr, rgb)
         out_record = copy(record)
         out_record.underlying['pilot/angle'] = output[0]
-        # rename and denormalise the throttle output
+        # スロットル出力のキー名を変更し、正規化を解除
         pilot_throttle_field \
             = rc_handler.data['user_pilot_map'][self.throttle_field]
         out_record.underlying[pilot_throttle_field] \
@@ -783,7 +797,7 @@ class OverlayImage(FullImage):
 
 
 class TransformationPopup(Popup):
-    """ Transformation popup window"""
+    """画像変換を選択するポップアップウィンドウ。"""
     title = StringProperty()
     transformations = \
         ["TRAPEZE", "CROP", "RGB2BGR", "BGR2RGB", "RGB2HSV", "HSV2RGB",
@@ -816,7 +830,7 @@ class TransformationPopup(Popup):
 
 
 class Transformations(Button):
-    """ Base class for transformation widgets"""
+    """画像変換ウィジェットの基底クラス。"""
     title = StringProperty(None)
     pilot_screen = ObjectProperty()
     is_post = False
@@ -836,7 +850,7 @@ class Transformations(Button):
 
 
 class PilotScreen(Screen):
-    """ Screen to do the pilot vs pilot comparison ."""
+    """複数のパイロットを比較するための画面。"""
     index = NumericProperty(None, force_dispatch=True)
     current_record = ObjectProperty(None)
     keys_enabled = BooleanProperty(False)
@@ -849,15 +863,13 @@ class PilotScreen(Screen):
     config = ObjectProperty()
 
     def on_index(self, obj, index):
-        """ Kivy method that is called if self.index changes. Here we update
-            self.current_record and the slider value. """
+        """``self.index`` が変化した際にレコードとスライダーを更新する。"""
         if tub_screen().ids.tub_loader.records:
             self.current_record = tub_screen().ids.tub_loader.records[index]
             self.ids.slider.value = index
 
     def on_current_record(self, obj, record):
-        """ Kivy method that is called when self.current_index changes. Here
-            we update the images and the control panel entry."""
+        """``self.current_record`` が変化した際に画像と表示を更新する。"""
         if not record:
             return
         i = record.underlying['_index']
@@ -878,8 +890,7 @@ class PilotScreen(Screen):
         self.ids.data_panel_2.ids.data_spinner.disabled = True
 
     def map_pilot_field(self, text):
-        """ Method to return user -> pilot mapped fields except for the
-            initial value called Add/remove. """
+        """Add/remove 以外の項目をユーザーからパイロットのフィールドへ変換する。"""
         if text == LABEL_SPINNER_TEXT:
             return text
         return rc_handler.data['user_pilot_map'][text]
@@ -892,9 +903,8 @@ class PilotScreen(Screen):
             if 'BRIGHTNESS' not in self.aug_list:
                 self.aug_list.append('BRIGHTNESS')
             else:
-                # Since we only changed the content of the config here,
-                # self.on_aug_list() would not be called, but we want to update
-                # the augmentation. Hence, update the dependency manually here.
+                # 設定内容のみ変更した場合 self.on_aug_list() は呼ばれないため、
+                # 依存関係を手動で更新する
                 self.on_aug_list(None, None)
         elif 'BRIGHTNESS' in self.aug_list:
             self.aug_list.remove('BRIGHTNESS')
@@ -908,7 +918,7 @@ class PilotScreen(Screen):
                 self.aug_list.append('BLUR')
         elif 'BLUR' in self.aug_list:
             self.aug_list.remove('BLUR')
-        # update dependency
+        # 依存関係を更新
         self.on_aug_list(None, None)
 
     def on_aug_list(self, obj, aug_list):
@@ -937,19 +947,19 @@ class PilotScreen(Screen):
 
     def set_mask(self, state):
         if state == 'down':
-            self.ids.status.text = 'Trapezoidal mask on'
+            self.ids.status.text = '台形マスクを有効化'
             self.trans_list.append('TRAPEZE')
         else:
-            self.ids.status.text = 'Trapezoidal mask off'
+            self.ids.status.text = '台形マスクを無効化'
             if 'TRAPEZE' in self.trans_list:
                 self.trans_list.remove('TRAPEZE')
 
     def set_crop(self, state):
         if state == 'down':
-            self.ids.status.text = 'Crop on'
+            self.ids.status.text = 'クロップを有効化'
             self.trans_list.append('CROP')
         else:
-            self.ids.status.text = 'Crop off'
+            self.ids.status.text = 'クロップを無効化'
             if 'CROP' in self.trans_list:
                 self.trans_list.remove('CROP')
 
@@ -970,22 +980,22 @@ class DataFrameLabel(Label):
 
 
 class TransferSelector(BoxLayout, FileChooserBase):
-    """ Class to select transfer model"""
+    """転移学習モデルを選択するためのクラス。"""
     filters = ['*.h5']
 
 
 class TrainScreen(Screen):
-    """ Class showing the training screen. """
+    """学習を実行する画面。"""
     config = ObjectProperty(force_dispatch=True, allownone=True)
     database = ObjectProperty()
     pilot_df = ObjectProperty(force_dispatch=True)
     tub_df = ObjectProperty(force_dispatch=True)
 
     def train_call(self, model_type, *args):
-        # remove car directory from path
+        # パスから車両ディレクトリ名を取り除く
         tub_path = tub_screen().ids.tub_loader.tub.base_path
         transfer = self.ids.transfer_spinner.text
-        if transfer != 'Choose transfer model':
+        if transfer != '転移モデルを選択':
             transfer = os.path.join(self.config.MODELS_PATH, transfer + '.h5')
         else:
             transfer = None
@@ -994,20 +1004,20 @@ class TrainScreen(Screen):
                             model_type=model_type,
                             transfer=transfer,
                             comment=self.ids.comment.text)
-            self.ids.status.text = f'Training completed.'
-            self.ids.comment.text = 'Comment'
-            self.ids.transfer_spinner.text = 'Choose transfer model'
+            self.ids.status.text = '学習が完了しました'
+            self.ids.comment.text = 'コメント'
+            self.ids.transfer_spinner.text = '転移モデルを選択'
             self.reload_database()
         except Exception as e:
             Logger.error(e)
-            self.ids.status.text = f'Train failed see console'
+            self.ids.status.text = '学習に失敗しました。コンソールを確認してください'
         finally:
             self.ids.train_button.state = 'normal'
 
     def train(self, model_type):
         self.config.SHOW_PLOT = False
         Thread(target=self.train_call, args=(model_type,)).start()
-        self.ids.status.text = f'Training started.'
+        self.ids.status.text = '学習を開始しました'
 
     def set_config_attribute(self, input):
         try:
@@ -1018,8 +1028,7 @@ class TrainScreen(Screen):
         att = self.ids.cfg_spinner.text.split(':')[0]
         setattr(self.config, att, val)
         self.ids.cfg_spinner.values = self.value_list()
-        self.ids.status.text = f'Setting {att} to {val} of type ' \
-                               f'{type(val).__name__}'
+        self.ids.status.text = f'{att} を {val} (型: {type(val).__name__}) に設定しました'
 
     def value_list(self):
         if self.config:
@@ -1042,13 +1051,13 @@ class TrainScreen(Screen):
         self.ids.scroll_tubs.text = tub_txt
         self.ids.scroll_pilots.text = pilot_txt
         self.ids.transfer_spinner.values \
-            = ['Choose transfer model'] + pilot_names
+            = ['転移モデルを選択'] + pilot_names
         self.ids.delete_spinner.values \
-            = ['Pilot'] + pilot_names
+            = ['パイロット'] + pilot_names
 
 
 class CarScreen(Screen):
-    """ Screen for interacting with the car. """
+    """実車と通信するための画面。"""
     config = ObjectProperty(force_dispatch=True, allownone=True)
     files = ListProperty()
     car_dir = StringProperty(rc_handler.data.get('robot_car_dir', '~/mycar'))
@@ -1074,7 +1083,7 @@ class CarScreen(Screen):
     def list_car_dir(self, dir):
         self.car_dir = dir
         self.files = self.list_remote_dir(dir)
-        # non-empty director found
+        # ディレクトリにファイルがある場合
         if self.files:
             rc_handler.data['robot_car_dir'] = dir
 
@@ -1089,7 +1098,7 @@ class CarScreen(Screen):
         if self.ids.create_dir.state == 'normal':
             target += '/'
         cmd = ['rsync', '-rv', '--progress', '--partial', target, dest]
-        Logger.info('car pull: ' + str(cmd))
+        Logger.info('車両から取得: ' + str(cmd))
         proc = Popen(cmd, shell=False, stdout=PIPE, text=True,
                      encoding='utf-8', universal_newlines=True)
         repeats = 100
@@ -1097,20 +1106,20 @@ class CarScreen(Screen):
         event = Clock.schedule_interval(call, 0.0001)
 
     def send_pilot(self):
-        # add trailing '/'
+        # 末尾に '/' を追加
         src = os.path.join(self.config.MODELS_PATH,'')
-        # check if any sync buttons are pressed and update path accordingly
+        # 同期ボタンが押されていればパスを調整
         buttons = ['h5', 'savedmodel', 'tflite', 'trt']
         select = [btn for btn in buttons if self.ids[f'btn_{btn}'].state
                   == 'down']
-        # build filter: for example this rsyncs all .tfilte and .trt models
+        # フィルタを作成: 例として .tflite と .trt のみ同期する場合
         # --include=*.trt/*** --include=*.tflite --exclude=*
         filter = ['--include=database.json']
         for ext in select:
             if ext in ['savedmodel', 'trt']:
                 ext += '/***'
             filter.append(f'--include=*.{ext}')
-        # if nothing selected, sync all
+        # 何も選択されていない場合はすべて同期
         if not select:
             filter.append('--include=*')
         else:
@@ -1118,7 +1127,7 @@ class CarScreen(Screen):
         dest = f'{self.config.PI_USERNAME}@{self.config.PI_HOSTNAME}:' + \
                f'{os.path.join(self.car_dir, "models")}'
         cmd = ['rsync', '-rv', '--progress', '--partial', *filter, src, dest]
-        Logger.info('car push: ' + ' '.join(cmd))
+        Logger.info('車両へ送信: ' + ' '.join(cmd))
         proc = Popen(cmd, shell=False, stdout=PIPE,
                      encoding='utf-8', universal_newlines=True)
         repeats = 0
@@ -1126,17 +1135,16 @@ class CarScreen(Screen):
         event = Clock.schedule_interval(call, 0.0001)
 
     def show_progress(self, proc, repeats, is_pull, e):
-        # find 'to-check=33/4551)' in OSX or 'to-chk=33/4551)' in
-        # Linux which is end of line
+        # OSX では 'to-check=33/4551)', Linux では 'to-chk=33/4551)' を探す
+        # 行末に現れる進捗表示を解析する
         pattern = 'to-(check|chk)=(.*)\)'
 
         def end():
-            # call ended this stops the schedule
+            # コマンド終了時にスケジュールを停止
             if is_pull:
                 button = self.ids.pull_tub
                 self.ids.pull_bar.value = 0
-                # merge in previous deleted indexes which now might have been
-                # overwritten
+                # 以前に削除されたインデックスをマージ（上書きされた可能性あり）
                 old_tub = tub_screen().ids.tub_loader.tub
                 if old_tub:
                     deleted_indexes = old_tub.manifest.deleted_indexes
@@ -1153,7 +1161,7 @@ class CarScreen(Screen):
         if proc.poll() is not None:
             end()
             return False
-        # find the next repeats lines with update info
+        # 次の進捗行を取得してバーを更新
         count = 0
         while True:
             stdout_data = proc.stdout.readline()
@@ -1171,7 +1179,7 @@ class CarScreen(Screen):
                             self.ids.push_bar.value = bar
                         return True
             else:
-                # end of stream command completed
+                # ストリームが終了したら完了
                 end()
                 return False
 
@@ -1181,9 +1189,9 @@ class CarScreen(Screen):
         if self.connection is None:
             if not hasattr(self.config, 'PI_USERNAME') or \
                     not hasattr(self.config, 'PI_HOSTNAME'):
-                self.ids.connected.text = 'Requires PI_USERNAME, PI_HOSTNAME'
+                self.ids.connected.text = 'PI_USERNAME と PI_HOSTNAME が必要です'
                 return
-            # run new command to check connection status
+            # 接続状況を確認するため新たにコマンドを実行
             cmd = ['ssh',
                    '-o ConnectTimeout=3',
                    f'{self.config.PI_USERNAME}@{self.config.PI_HOSTNAME}',
@@ -1192,21 +1200,21 @@ class CarScreen(Screen):
                                     stderr=STDOUT, text=True,
                                     encoding='utf-8', universal_newlines=True)
         else:
-            # ssh is already running, check where we are
+            # ssh が既に実行中の場合は状態を確認
             return_val = self.connection.poll()
             self.is_connected = False
             if return_val is None:
-                # command still running, do nothing and check next time again
-                status = 'Awaiting connection...'
+                # コマンド実行中のため次回に再確認
+                status = '接続待機中...'
                 self.ids.connected.color = 0.8, 0.8, 0.0, 1
             else:
-                # command finished, check if successful and reset connection
+                # コマンド終了。成功したか確認し接続をリセット
                 if return_val == 0:
-                    status = 'Connected'
+                    status = '接続済み'
                     self.ids.connected.color = 0, 0.9, 0, 1
                     self.is_connected = True
                 else:
-                    status = 'Disconnected'
+                    status = '未接続'
                     self.ids.connected.color = 0.9, 0, 0, 1
                 self.connection = None
             self.ids.connected.text = status
@@ -1222,24 +1230,23 @@ class CarScreen(Screen):
                f'{self.config.PI_USERNAME}@{self.config.PI_HOSTNAME}',
                f'source env/bin/activate; cd {self.car_dir}; ./manage.py '
                f'drive {model_args} 2>&1']
-        Logger.info(f'car connect: {cmd}')
+        Logger.info(f'車両接続: {cmd}')
         proc = Popen(cmd, shell=False, stdout=PIPE, text=True,
                      encoding='utf-8', universal_newlines=True)
         while True:
             stdout_data = proc.stdout.readline()
             if stdout_data:
-                # find 'PID: 12345'
+                # 'PID: 12345' を検出
                 pattern = 'PID: .*'
                 res = re.search(pattern, stdout_data)
                 if res:
                     try:
                         self.pid = int(res.group(0).split('PID: ')[1])
-                        Logger.info(f'car connect: manage.py drive PID: '
-                                    f'{self.pid}')
+                        Logger.info(f'車両接続: manage.py drive PID: {self.pid}')
                     except Exception as e:
-                        Logger.error(f'car connect: {e}')
+                        Logger.error(f'車両接続エラー: {e}')
                     return
-                Logger.info(f'car connect: {stdout_data}')
+                Logger.info(f'車両接続: {stdout_data}')
             else:
                 return
 
@@ -1248,11 +1255,12 @@ class CarScreen(Screen):
             cmd = f'ssh {self.config.PI_USERNAME}@{self.config.PI_HOSTNAME} '\
                   + f'kill {self.pid}'
             out = os.popen(cmd).read()
-            Logger.info(f"car connect: Kill PID {self.pid} + {out}")
+            Logger.info(f"車両接続: PID {self.pid} を終了 {out}")
             self.pid = None
 
 
 class StartScreen(Screen):
+    """起動画面を表すシンプルなスクリーン。"""
     img_path = os.path.realpath(os.path.join(
         os.path.dirname(__file__),
         '../parts/web_controller/templates/static/donkeycar-logo-sideways.png'))
@@ -1260,6 +1268,7 @@ class StartScreen(Screen):
 
 
 class DonkeyApp(App):
+    """Kivy ベースの DonkeyCar 管理アプリケーション。"""
     start_screen = None
     tub_screen = None
     train_screen = None
@@ -1271,8 +1280,7 @@ class DonkeyApp(App):
         self.tub_screen.ids.config_manager.load_action()
         self.pilot_screen.initialise(event)
         self.car_screen.initialise()
-        # This builds the graph which can only happen after everything else
-        # has run, therefore delay until the next round.
+        # グラフ生成は他の処理完了後でないと行えないため次のループまで遅延
         Clock.schedule_once(self.tub_screen.ids.tub_loader.update_tub)
 
     def build(self):
@@ -1297,11 +1305,12 @@ class DonkeyApp(App):
         tub = self.tub_screen.ids.tub_loader.tub
         if tub:
             tub.close()
-        Logger.info("Good bye Donkey")
+        Logger.info("さようなら Donkey")
         return False
 
 
 def main():
+    """アプリケーションを起動するエントリーポイント。"""
     tub_app = DonkeyApp()
     tub_app.run()
 

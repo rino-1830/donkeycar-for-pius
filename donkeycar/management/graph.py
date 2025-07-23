@@ -55,7 +55,7 @@ Builder.load_string('''
                 valign: 'top'
                 font_size: 12 if platform == 'linux' else 24
                 size: self.texture_size
-                text: 'index'
+                text: 'インデックス'
         BoxLayout:
             id: legend
             size_hint_x: 0.15
@@ -64,17 +64,25 @@ Builder.load_string('''
 
 
 class PlotArea(Widget):
-    """ The graph area of the time series plot """
+    """タイムシリーズプロットのグラフ領域。"""
     offset = [50, 20]
     bounding_box = ListProperty()
 
     def make_bounding_box(self):
+        """ウィジェットの描画領域を計算して返します。
+
+        Returns:
+            list: 左下と右上の座標からなる境界ボックス。
+        """
+
         return [[self.x + self.offset[0],
                  self.y + self.offset[1]],
                 [self.x + self.size[0] - self.offset[0],
                  self.y + self.size[1] - self.offset[1]]]
 
     def draw_axes(self):
+        """軸を描画します。"""
+
         self.canvas.clear()
         self.bounding_box = self.make_bounding_box()
         bb = self.bounding_box
@@ -84,6 +92,12 @@ class PlotArea(Widget):
             Line(width=1 if sys.platform == 'linux' else 1.5, points=points)
 
     def draw_x_ticks(self, num_ticks):
+        """X軸の目盛りを描画します。
+
+        Args:
+            num_ticks (int): 目盛りの数。
+        """
+
         x_length = self.bounding_box[1][0] - self.bounding_box[0][0]
         for i in range(num_ticks + 1):
             i_len = x_length * i / num_ticks
@@ -94,18 +108,44 @@ class PlotArea(Widget):
                 Line(width=1 if sys.platform == 'linux' else 1.5, points=bottom+top)
 
     def get_x(self, num_points):
+        """データ点のX座標を計算します。
+
+        Args:
+            num_points (int): データ点の数。
+
+        Returns:
+            numpy.ndarray: X座標の配列。
+        """
+
         x_scale = (self.bounding_box[1][0] - self.bounding_box[0][0]) \
                   / (num_points - 1)
         x_trafo = x_scale * np.array(range(num_points)) + self.bounding_box[0][0]
         return x_trafo
 
     def transform_y(self, y):
+        """Y座標を描画領域に合わせて変換します。
+
+        Args:
+            y (numpy.ndarray): 変換前のY値。
+
+        Returns:
+            numpy.ndarray: 変換後のY座標。
+        """
+
         y_scale = (self.bounding_box[1][1] - self.bounding_box[0][1]) \
-                  / (y.max() - y.min() + 1e-10)  # to avoid division by zero
+                  / (y.max() - y.min() + 1e-10)  # 0 除を避けるため
         y_trafo = y_scale * (y - y.min()) + self.y + self.offset[1]
         return y_trafo
 
     def add_line(self, y_points, len, hsv):
+        """データ系列を描画します。
+
+        Args:
+            y_points (numpy.ndarray): Y値の配列。
+            len (int): データ点数。
+            hsv (tuple): HSV色指定。
+        """
+
         x_transformed = self.get_x(len)
         y_transformed = self.transform_y(y_points)
         xy_points = list()
@@ -118,19 +158,22 @@ class PlotArea(Widget):
 
 
 class TsPlot(BoxLayout):
-    """ Time series plot. Can be integrated as a widget into another kivy
-        app."""
+    """タイムシリーズプロット。別のKivyアプリのウィジェットとして組み込めます。"""
     len = 0
     x_ticks = 10
     df = ObjectProperty(force_dispatch=True, allownone=True)
 
     def draw_axes(self):
+        """プロットエリアの軸を描画してリセットします。"""
+
         self.ids.x_ticks.clear_widgets()
         self.ids.legend.clear_widgets()
         self.len = 0
         self.ids.plot.draw_axes()
 
     def draw_x_ticks(self):
+        """X軸の目盛りラベルを描画します。"""
+
         if self.len == 0:
             return
         self.ids.plot.draw_x_ticks(self.x_ticks)
@@ -140,6 +183,13 @@ class TsPlot(BoxLayout):
             self.ids.x_ticks.add_widget(tick_label)
 
     def add_line(self, y_points, idx):
+        """データフレームの列をプロットに追加します。
+
+        Args:
+            y_points (pandas.Series): 描画するデータ列。
+            idx (int): 列のインデックス。
+        """
+
         if self.len == 0:
             self.len = len(y_points)
             self.draw_x_ticks()
@@ -149,6 +199,8 @@ class TsPlot(BoxLayout):
         self.ids.legend.add_widget(l)
 
     def on_df(self, e=None, z=None):
+        """データフレームを受け取ってグラフを描画します。"""
+
         self.draw_axes()
         if self.df is not None:
             self.ids.index_label.text = self.df.index.name or 'index'
@@ -160,26 +212,35 @@ class TsPlot(BoxLayout):
             self.add_line(y, i)
 
     def set_df(self, e):
+        """ランダムなデータフレームを生成して設定します。"""
+
         n = int(random() * 20) + 1
-        cols = ['very very long line ' + str(i) for i in range(n)]
+        cols = ['とてもとても長い行 ' + str(i) for i in range(n)]
         df = pd.DataFrame(np.random.randn(20, n), columns=cols)
-        df.index.name = 'My Index'
+        df.index.name = '私のインデックス'
         self.df = df
 
 
 class LegendLabel(BoxLayout):
+    """凡例表示用のラベルウィジェット。"""
     hsv = ListProperty()
     text = StringProperty()
     pass
 
 
 class GraphApp(App):
-    """ Test app for time series graph. """
+    """タイムシリーズグラフのテストアプリ。"""
     def build(self):
+        """アプリケーションを構築してルートウィジェットを返します。
+
+        Returns:
+            kivy.uix.boxlayout.BoxLayout: ルートレイアウト。
+        """
+
         b = BoxLayout(orientation='vertical')
         ts_plot = TsPlot()
         b.add_widget(ts_plot)
-        btn = Button(text='Create random series', size_hint_y=0.1)
+        btn = Button(text='ランダムな系列を生成', size_hint_y=0.1)
         btn.bind(on_press=ts_plot.set_df)
         b.add_widget(btn)
         return b

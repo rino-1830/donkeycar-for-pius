@@ -1,5 +1,27 @@
 # 変更履歴
 
+## kivy_ui.py の日本語化
+- `donkeycar/management/kivy_ui.py` のコメント、表示メッセージ、docstring を日本語化
+
+## UIメッセージとコメントの日本語化
+- `donkeycar/management/ui.kv` のコメントと表示文言を日本語へ翻訳
+
+## 管理用スクリプトの日本語化
+- `donkeycar/management/base.py` のコメント、メッセージ、Docstring を日本語化
+
+## Tub管理機能の翻訳対応
+- `donkeycar/management/tub.py` のコメント、表示メッセージ、docstringを日本語化
+
+## コメントとメッセージの日本語化
+- `donkeycar/management/makemovie.py` のコメント、表示メッセージ、Docstring を日本語へ翻訳
+
+## ジョイスティックウィザード翻訳
+- `joystick_creator.py` のコメント、メッセージを日本語化
+- すべてのメソッドにGoogleスタイルのDocstringを追加
+
+## コメントとメッセージの翻訳
+- `donkeycar/management/graph.py` のコメント、表示文字列、Docstring を日本語化し、Google スタイルに整形しました。
+
 ## 翻訳: pipeline モジュールの日本語化
 - `donkeycar/pipeline` 配下の全 Python ファイルのコメント、表示メッセージ、docstring を日本語化
 - すべての主要なクラス・関数に Google スタイルの docstring を追加
