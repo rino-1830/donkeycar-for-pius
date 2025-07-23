@@ -49,13 +49,19 @@ logging.basicConfig(level=logging.INFO)
 
 def drive(cfg, model_path=None, use_joystick=False, model_type=None,
           camera_type='single', meta=[]):
-    """多くのパーツを組み合わせて動作するロボットカーを構築する。
+    """車両を構築してメインループを開始する。
 
-    各パーツは ``threaded`` フラグに応じて ``run`` もしくは ``run_threaded``
-    メソッドが呼び出される。すべてのパーツは ``cfg.DRIVE_LOOP_HZ`` で
-    指定されたフレームレートで順に更新され、処理が遅延しないことを
-    前提としている。パーツは名前付きの出力と入力を持つことができ、
-    フレームワークは同じ名前の入力を要求するパーツへ出力を渡す。
+    各パーツは ``threaded`` フラグに応じて ``run`` または ``run_threaded``
+    を呼び出され、``cfg.DRIVE_LOOP_HZ`` で指定された周期で実行される。
+
+    Args:
+        cfg: ``myconfig.py`` で定義された設定オブジェクト。
+        model_path: 事前学習済みモデルのパス。
+        use_joystick: 物理ジョイスティックを使用するかどうか。
+        model_type: モデルの種類。``None`` の場合 ``cfg`` から決定する。
+        camera_type: カメラのタイプ ``'single'`` または ``'stereo'``。
+        meta: TubWriter に渡すメタデータのリスト。
+
     """
     logger.info(f'PID: {os.getpid()}')
     if cfg.DONKEY_GYM:
@@ -124,26 +130,26 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
               outputs=["fps/current", "fps/fps_list"])
 
     #
-    # add the user input controller(s)
-    # - this will add the web controller
-    # - it will optionally add any configured 'joystick' controller
+    # ユーザー入力コントローラーを追加する
+    # - Web コントローラーを追加
+    # - 必要に応じて設定されたジョイスティックも追加
     #
     has_input_controller = hasattr(cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
     ctr = add_user_controller(V, cfg, use_joystick)
 
     #
-    # convert 'user/steering' to 'user/angle' to be backward compatible with deep learning data
+    # 過去の学習データとの互換性を保つため 'user/steering' を 'user/angle' に変換
     #
     V.add(Pipe(), inputs=['user/steering'], outputs=['user/angle'])
 
     #
-    # explode the buttons input map into individual output key/values in memory
+    # ボタン入力のマップを展開して個々のキーと値として保持
     #
     V.add(ExplodeDict(V.mem, "web/"), inputs=['web/buttons'])
 
     #
-    # For example: adding a button handler is just adding a part with a run_condition
-    # set to the button's name, so it runs when button is pressed.
+    # 例として、ボタンハンドラーを追加するには ``run_condition`` をボタン名に
+    # 設定したパーツを追加するだけで、ボタンが押されたときに実行される
     #
     V.add(Lambda(lambda v: print(f"web/w1 がクリックされました")), inputs=["web/w1"], run_condition="web/w1")
     V.add(Lambda(lambda v: print(f"web/w2 がクリックされました")), inputs=["web/w2"], run_condition="web/w2")
@@ -163,11 +169,25 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
           outputs=['run_user', "run_pilot", "ui/image_array"])
 
     class LedConditionLogic:
+        """LED の状態を決定するロジック。"""
         def __init__(self, cfg):
+            """設定を受け取って初期化する。"""
             self.cfg = cfg
 
         def run(self, mode, recording, recording_alert, behavior_state, model_file_changed, track_loc):
-            # 点滅速度を返す。0 は消灯、-1 は点灯、正数は点滅周期(秒)
+            """LED の点滅速度を計算する。
+
+            Args:
+                mode: 現在のモード。
+                recording: 録画状態。
+                recording_alert: 録画件数に応じた警告色。
+                behavior_state: 行動状態。
+                model_file_changed: モデルファイルが更新されたかどうか。
+                track_loc: 現在のトラック位置。
+
+            Returns:
+                点滅速度。0 で消灯、-1 で点灯し続け、正数は点滅周期(秒)。
+            """
 
             if track_loc is not None:
                 led.set_rgb(*self.cfg.LOC_COLORS[track_loc])
@@ -211,6 +231,14 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         V.add(led, inputs=['led/blink_rate'])
 
     def get_record_alert_color(num_records):
+        """記録数に対応する警告色を取得する。"
+
+        Args:
+            num_records: 現在の記録数。
+
+        Returns:
+            ``(r, g, b)`` のタプル。
+        """
         col = (0, 0, 0)
         for count, color in cfg.RECORD_ALERT_COLOR_ARR:
             if num_records >= count:
@@ -218,12 +246,16 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         return col
 
     class RecordTracker:
+        """Tub 記録数を追跡し、LED アラート用の色を出力する。"""
+
         def __init__(self):
+            """インスタンスを初期化する。"""
             self.last_num_rec_print = 0
             self.dur_alert = 0
             self.force_alert = 0
 
         def run(self, num_records):
+            """記録数に応じたアラート色を計算する。"""
             if num_records is None:
                 return 0
 
@@ -250,11 +282,14 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
     if cfg.AUTO_RECORD_ON_THROTTLE:
         def show_record_count_status():
+            """現在の記録数を即座に表示するトリガー。"""
             rec_tracker_part.last_num_rec_print = 0
             rec_tracker_part.force_alert = 1
-        if (cfg.CONTROLLER_TYPE != "pigpio_rc") and (cfg.CONTROLLER_TYPE != "MM1"):  # these controllers don't use the joystick class
+        # pigpio_rc と MM1 は JoystickController を使用しない
+        if (cfg.CONTROLLER_TYPE != "pigpio_rc") and (cfg.CONTROLLER_TYPE != "MM1"):
             if isinstance(ctr, JoystickController):
-                ctr.set_button_down_trigger('circle', show_record_count_status) #then we are not using the circle button. hijack that to force a record count indication
+                # circle ボタンを流用して記録数表示を強制
+                ctr.set_button_down_trigger('circle', show_record_count_status)
         else:
             
             show_record_count_status()
@@ -268,17 +303,29 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     add_imu(V, cfg)
 
 
-    # Use the FPV preview, which will show the cropped image output, or the full frame.
+    # クロップ後の画像またはフルフレームを表示する FPV プレビューを使用
     if cfg.USE_FPV:
         V.add(WebFpv(), inputs=['cam/image_array'], threaded=True)
 
     def load_model(kl, model_path):
+        """モデルファイルを読み込む。"
+
+        Args:
+            kl: Keras ラッパー。
+            model_path: モデルファイルへのパス。
+        """
         start = time.time()
         print('モデルを読み込み中', model_path)
         kl.load(model_path)
         print('読み込み完了 %s 秒' % (str(time.time() - start)))
 
     def load_weights(kl, weights_path):
+        """重みファイルのみを読み込む。"
+
+        Args:
+            kl: Keras ラッパー。
+            weights_path: 重みファイルへのパス。
+        """
         start = time.time()
         try:
             print('モデルの重みを読み込み中', weights_path)
@@ -289,6 +336,13 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             print('ERR>> 重みの読み込みに失敗しました', weights_path)
 
     def load_model_json(kl, json_fnm):
+        """JSON 形式のモデルを読み込み重みを設定する。"
+
+        Args:
+            kl: Keras ラッパー。
+            json_fnm: JSON ファイル名。
+
+        """
         start = time.time()
         print('モデル JSON を読み込み中', json_fnm)
         from tensorflow.python import keras
@@ -302,20 +356,19 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             print("ERR>> モデル JSON の読み込みに失敗しました", json_fnm)
 
     #
-    # load and configure model for inference
+    # 推論用のモデルを読み込み設定する
     #
     if model_path:
-        # If we have a model, create an appropriate Keras part
+        # モデルが指定されていれば対応する Keras パーツを生成
         kl = dk.utils.get_model_by_type(model_type, cfg)
 
         #
-        # get callback function to reload the model
-        # for the configured model format
+        # モデル形式に合わせてリロード用のコールバックを取得
         #
         model_reload_cb = None
         if '.h5' in model_path or '.trt' in model_path or '.tflite' in \
                 model_path or '.savedmodel' in model_path or '.pth':
-            # load the whole model with weigths, etc
+            # 重みを含む完全なモデルを読み込む
             load_model(kl, model_path)
 
             def reload_model(filename):
@@ -324,9 +377,8 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             model_reload_cb = reload_model
 
         elif '.json' in model_path:
-            # when we have a .json extension
-            # load the model from there and look for a matching
-            # .wts file with just weights
+            # 拡張子が .json の場合はモデル構造のみを読み込み、
+            # 同名の .weights ファイルから重みを読み込む
             load_model_json(kl, model_path)
             weights_path = model_path.replace('.json', '.weights')
             load_weights(kl, weights_path)
@@ -341,12 +393,12 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             print("ERR>> モデルファイルの拡張子が不明です!!")
             return
 
-        # this part will signal visual LED, if connected
+        # モデル更新を検知したら LED へ通知する
         V.add(FileWatcher(model_path, verbose=True),
               outputs=['modelfile/modified'])
 
-        # these parts will reload the model file, but only when ai is running
-        # so we don't interrupt user driving
+        # 以下のパーツは自動運転中のみモデルをリロードし、
+        # ユーザー操作を妨げないようにする
         V.add(FileWatcher(model_path), outputs=['modelfile/dirty'],
               run_condition="run_pilot")
         V.add(DelayedTrigger(100), inputs=['modelfile/dirty'],
@@ -355,7 +407,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
               inputs=["modelfile/reload"], run_condition="run_pilot")
 
         #
-        # collect inputs to model for inference
+        # 推論用モデルへの入力を収集
         #
         if cfg.TRAIN_BEHAVIORS:
             bh = BehaviorPart(cfg.BEHAVIOR_LIST)
@@ -389,7 +441,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             inputs = ['cam/image_array']
 
         #
-        # collect model inference outputs
+        # モデルの推論結果を受け取る出力を定義
         #
         outputs = ['pilot/angle', 'pilot/throttle']
 
@@ -397,15 +449,15 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             outputs.append("pilot/loc")
 
         #
-        # Add image transformations like crop or trapezoidal mask
-        # so they get applied at inference time in autopilot mode.
+        # クロップや台形マスクなどの画像変換を追加し、
+        # 自動運転モードの推論時にも適用されるようにする
         #
         if hasattr(cfg, 'TRANSFORMATIONS') or hasattr(cfg, 'POST_TRANSFORMATIONS'):
             from donkeycar.parts.image_transformations import ImageTransformations
             #
-            # add the complete set of pre and post augmentation transformations
+            # 学習時と同じ前処理・後処理をすべて追加
             #
-            logger.info(f"Adding inference transformations")
+            logger.info("推論用変換を追加します")
             V.add(ImageTransformations(cfg, 'TRANSFORMATIONS',
                                        'POST_TRANSFORMATIONS'),
                   inputs=['cam/image_array'], outputs=['cam/image_array_trans'])
@@ -414,7 +466,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         V.add(kl, inputs=inputs, outputs=outputs, run_condition='run_pilot')
 
     #
-    # stop at a stop sign
+    # ストップサインを検知したら停止する
     #
     if cfg.STOP_SIGN_DETECTOR:
         from donkeycar.parts.object_detector.stop_sign_detector \
@@ -430,12 +482,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
               outputs=['pilot/throttle'])
 
     #
-    # to give the car a boost when starting ai mode in a race.
-    # This will also override the stop sign detector so that
-    # you can start at a stop sign using launch mode, but
-    # will stop when it comes to the stop sign the next time.
+    # レースで AI モードを開始するときに加速させるランチャー
+    # ストップサイン検出を一時的に無効にし、発進後は再度有効になる
     #
-    # NOTE: when launch throttle is in effect, pilot speed is set to None
+    # NOTE: ランチスロットル中はパイロット速度が ``None`` になる
     #
     aiLauncher = AiLaunch(cfg.AI_LAUNCH_DURATION, cfg.AI_LAUNCH_THROTTLE, cfg.AI_LAUNCH_KEEP_ENABLED)
     V.add(aiLauncher,
@@ -443,8 +493,8 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
           outputs=['pilot/throttle'])
 
     #
-    # Decide what inputs should change the car's steering and throttle
-    # based on the choice of user or autopilot drive mode
+    # ユーザー操作か自動運転かに応じて
+    # どの入力をステアリングとスロットルに反映するか決定
     #
     V.add(DriveMode(cfg.AI_THROTTLE_MULT),
           inputs=['user/mode', 'user/angle', 'user/throttle',
@@ -457,18 +507,18 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             ctr.set_button_down_trigger(cfg.AI_LAUNCH_ENABLE_BUTTON, aiLauncher.enable_ai_launch)
 
 
-    # Ai Recording
+    # AI モード中の録画管理
     recording_control = ToggleRecording(cfg.AUTO_RECORD_ON_THROTTLE, cfg.RECORD_DURING_AI)
     V.add(recording_control, inputs=['user/mode', "recording"], outputs=["recording"])
 
     #
-    # Setup drivetrain
+    # ドライブトレインの設定
     #
     add_drivetrain(V, cfg)
 
 
     #
-    # OLED display setup
+    # OLED ディスプレイの設定
     #
     if cfg.USE_SSD1306_128_32:
         from donkeycar.parts.oled import OLEDPart
@@ -477,7 +527,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         V.add(oled_part, inputs=['recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
 
     #
-    # add tub to save data
+    # 走行データを保存する Tub を追加
     #
     if cfg.USE_LIDAR:
         inputs = ['cam/image_array', 'lidar/dist_array', 'user/angle', 'user/throttle', 'user/mode']
@@ -533,7 +583,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         V.add(mon, inputs=[], outputs=perfmon_outputs, threaded=True)
 
     #
-    # Create data storage part
+    # データ保存用パーツを作成
     #
     tub_path = TubHandler(path=cfg.DATA_PATH).create_tub_path() if \
         cfg.AUTO_CREATE_NEW_TUB else cfg.DATA_PATH
@@ -541,7 +591,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     tub_writer = TubWriter(tub_path, inputs=inputs, types=types, metadata=meta)
     V.add(tub_writer, inputs=inputs, outputs=["tub/num_records"], run_condition='recording')
 
-    # Telemetry (we add the same metrics added to the TubHandler
+    # Telemetry（TubHandler と同じメトリクスを送信）
     if cfg.HAVE_MQTT_TELEMETRY:
         from donkeycar.parts.telemetry import MqttTelemetry
         tel = MqttTelemetry(cfg)
@@ -566,7 +616,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             ctr.set_tub(tub_writer.tub)
             ctr.print_controls()
 
-    # run the vehicle
+    # 車両を走行させる
     V.start(rate_hz=cfg.DRIVE_LOOP_HZ, max_loop_count=cfg.MAX_LOOPS)
 
 
@@ -603,12 +653,11 @@ class ToggleRecording:
         """
         recording_in = recording
         if recording_in != self.last_recording:
-            logging.info(f"Recording Change = {recording_in}")
+            logging.info(f"録画状態が変わりました: {recording_in}")
 
         if self.toggle_latch:
             if self.auto_record_on_throttle:
-                logger.info(
-                    'auto record on throttle is enabled; ignoring toggle of manual mode.')
+                logger.info('スロットル連動録画が有効のため手動切り替えを無視します')
             else:
                 recording = not self.last_recording
             self.toggle_latch = False
@@ -618,11 +667,11 @@ class ToggleRecording:
             self.recording_latch = None
 
         if recording and mode != 'user' and not self.record_in_autopilot:
-            logging.info("Ignoring recording in auto-pilot mode")
+            logging.info("自動運転中の録画は無視されました")
             recording = False
 
         if self.last_recording != recording:
-            logging.info(f"Setting Recording = {recording}")
+            logging.info(f"録画設定を更新しました: {recording}")
 
         self.last_recording = recording
 
@@ -701,8 +750,8 @@ def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
     """
 
     #
-    # This web controller will create a web server that is capable
-    # of managing steering, throttle, and modes, and more.
+    # この Web コントローラはステアリング、スロットル、モードなどを
+    # 管理するための Web サーバーを起動する
     #
     ctr = LocalWebController(port=cfg.WEB_CONTROL_PORT, mode=cfg.WEB_INIT_MODE)
     V.add(ctr,
@@ -711,13 +760,13 @@ def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
           threaded=True)
 
     #
-    # also add a physical controller if one is configured
+    # さらに設定されていれば物理コントローラーも追加する
     #
     if use_joystick or cfg.USE_JOYSTICK_AS_DEFAULT:
         #
-        # RC controller
+        # RC コントローラー
         #
-        if cfg.CONTROLLER_TYPE == "pigpio_rc":  # an RC controllers read by GPIO pins. They typically don't have buttons
+        if cfg.CONTROLLER_TYPE == "pigpio_rc":  # GPIO ピンから読み取る RC コントローラー。通常ボタンはない
             from donkeycar.parts.controller import RCReceiver
             ctr = RCReceiver(cfg)
             V.add(
@@ -728,8 +777,7 @@ def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
                 threaded=False)
         else:
             #
-            # custom game controller mapping created with
-            # `donkey createjs` command
+            # `donkey createjs` コマンドで作成したカスタムゲームコントローラー設定
             #
             if cfg.CONTROLLER_TYPE == "custom":  # custom controller created with `donkey createjs` command
                 from my_joystick import MyJoystickController
@@ -748,7 +796,7 @@ def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
                                      throttle=cfg.MOCK_JOYSTICK_THROTTLE)
             else:
                 #
-                # game controller
+                # ゲームコントローラー
                 #
                 from donkeycar.parts.controller import get_js_controller
                 ctr = get_js_controller(cfg)
@@ -767,8 +815,15 @@ def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
 
 
 def add_simulator(V, cfg):
-    # Donkey gym part will output position information if it is configured
-    # TODO: the simulation outputs conflict with imu, odometry, kinematics pose estimation and T265 outputs; make them work together.
+    """シミュレータを追加する。
+
+    Args:
+        V: 車両のパイプライン。
+        cfg: ``myconfig.py`` から読み込んだ設定。
+
+    """
+    # Donkey Gym を使用する場合、位置情報などを出力する
+    # TODO: シミュレーションの出力が IMU やオドメトリ等と競合するため整理する
     if cfg.DONKEY_GYM:
         from donkeycar.parts.dgym import DonkeyGymEnv
         # rbx
@@ -798,7 +853,14 @@ def add_simulator(V, cfg):
 
 
 def get_camera(cfg):
-    """設定に基づいたカメラパーツを取得する。"""
+    """設定に基づいたカメラパーツを取得する。
+
+    Args:
+        cfg: ``myconfig.py`` で読み込んだ設定。
+
+    Returns:
+        生成したカメラパーツ。存在しない場合は ``None``。
+    """
     cam = None
     if not cfg.DONKEY_GYM:
         if cfg.CAMERA_TYPE == "PICAM":
@@ -830,16 +892,18 @@ def get_camera(cfg):
             from donkeycar.parts.camera import MockCamera
             cam = MockCamera(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH)
         else:
-            raise(Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
+            raise Exception("未知のカメラタイプです: %s" % cfg.CAMERA_TYPE)
     return cam
 
 
 def add_camera(V, cfg, camera_type):
-    """設定されたカメラを車両のパイプラインに追加する。
+    """カメラパーツをパイプラインへ追加する。
 
     Args:
         V: 車両のパイプライン。呼び出し後に変更される。
         cfg: ``myconfig.py`` から読み込んだ設定。
+        camera_type: ``'single'`` または ``'stereo'``。
+
     """
     logger.info("cfg.CAMERA_TYPE %s"%cfg.CAMERA_TYPE)
     if camera_type == "stereo":
@@ -855,7 +919,7 @@ def add_camera(V, cfg, camera_type):
             camA = CvCam(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, iCam = 0)
             camB = CvCam(image_w=cfg.IMAGE_W, image_h=cfg.IMAGE_H, image_d=cfg.IMAGE_DEPTH, iCam = 1)
         else:
-            raise(Exception("Unsupported camera type: %s" % cfg.CAMERA_TYPE))
+            raise Exception("未対応のカメラタイプです: %s" % cfg.CAMERA_TYPE)
 
         V.add(camA, outputs=['cam/image_array_a'], threaded=True)
         V.add(camB, outputs=['cam/image_array_b'], threaded=True)
@@ -894,16 +958,18 @@ def add_camera(V, cfg, camera_type):
 
 
 def add_odometry(V, cfg, threaded=True):
-    """オドメトリが有効な場合にエンコーダやキネマティクスを追加する。
+    """オドメトリ関連パーツを追加する。
 
     Args:
         V: 車両のパイプライン。必要に応じて変更される。
         cfg: ``myconfig.py`` から読み込んだ設定。
+        threaded: スレッド実行するかどうか。
+
     """
     from donkeycar.parts.pose import BicyclePose, UnicyclePose
 
     if cfg.HAVE_ODOM:
-        poll_delay_secs = 0.01  # pose estimation runs at 100hz
+        poll_delay_secs = 0.01  # 姿勢推定は 100Hz で動作
         kinematics = UnicyclePose(cfg, poll_delay_secs) if cfg.HAVE_ODOM_2 else BicyclePose(cfg, poll_delay_secs)
         V.add(kinematics,
             inputs = ["throttle", "steering", None],
@@ -914,10 +980,18 @@ def add_odometry(V, cfg, threaded=True):
 
 
 #
-# IMU setup
+# IMU セットアップ
 #
 def add_imu(V, cfg):
-    """IMU パーツを追加する。"""
+    """IMU パーツを追加する。
+
+    Args:
+        V: 車両のパイプライン。
+        cfg: ``myconfig.py`` から読み込んだ設定。
+
+    Returns:
+        生成した IMU パーツ。存在しない場合は ``None``。
+    """
     imu = None
     if cfg.HAVE_IMU:
         from donkeycar.parts.imu import IMU
@@ -930,17 +1004,23 @@ def add_imu(V, cfg):
 
 
 #
-# Drive train setup
+# ドライブトレインの設定
 #
 def add_drivetrain(V, cfg):
-    """駆動系のパーツを設定する。"""
+    """駆動系パーツを設定する。
+
+    Args:
+        V: 車両のパイプライン。
+        cfg: ``myconfig.py`` から読み込んだ設定。
+
+    """
     if (not cfg.DONKEY_GYM) and cfg.DRIVE_TRAIN_TYPE != "MOCK":
         from donkeycar.parts import actuator, pins
         from donkeycar.parts.actuator import TwoWheelSteeringThrottle
 
         #
-        # To make differential drive steer,
-        # divide throttle between motors based on the steering value
+        # 差動駆動でステアリングさせるため、
+        # ステアリング値に基づき左右モーターのスロットルを分配する
         #
         is_differential_drive = cfg.DRIVE_TRAIN_TYPE.startswith("DC_TWO_WHEEL")
         if is_differential_drive:
@@ -950,9 +1030,8 @@ def add_drivetrain(V, cfg):
 
         if cfg.DRIVE_TRAIN_TYPE == "PWM_STEERING_THROTTLE":
             #
-            # drivetrain for RC car with servo and ESC.
-            # using a PwmPin for steering (servo)
-            # and as second PwmPin for throttle (ESC)
+            # サーボと ESC を用いた RC カー向けドライブトレイン
+            # ステアリング用とスロットル用にそれぞれ PWM ピンを使用する
             #
             from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PulseController
 
@@ -978,8 +1057,8 @@ def add_drivetrain(V, cfg):
 
         elif cfg.DRIVE_TRAIN_TYPE == "I2C_SERVO":
             #
-            # This driver is DEPRECATED in favor of 'DRIVE_TRAIN_TYPE == "PWM_STEERING_THROTTLE"'
-            # This driver will be removed in a future release
+            # このドライバーは非推奨です。代わりに ``PWM_STEERING_THROTTLE`` を使用してください
+            # 将来のリリースで削除されます
             #
             from donkeycar.parts.actuator import PCA9685, PWMSteering, PWMThrottle
 
@@ -1037,7 +1116,7 @@ def add_drivetrain(V, cfg):
 
         elif cfg.DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_2PIN":
             #
-            # Servo for steering and HBridge motor driver in 2pin mode for motor
+            # 2 ピン方式の HBridge モーターとサーボを用いた駆動方式
             #
             from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PulseController
 
@@ -1059,7 +1138,7 @@ def add_drivetrain(V, cfg):
 
         elif cfg.DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_3PIN":
             #
-            # Servo for steering and HBridge motor driver in 3pin mode for motor
+            # 3 ピン方式の HBridge モーターとサーボを用いた駆動方式
             #
             from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PulseController
 
@@ -1082,12 +1161,12 @@ def add_drivetrain(V, cfg):
 
         elif cfg.DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_PWM":
             #
-            # This driver is DEPRECATED in favor of 'DRIVE_TRAIN_TYPE == "SERVO_HBRIDGE_2PIN"'
-            # This driver will be removed in a future release
+            # このドライバーは非推奨です。代わりに ``SERVO_HBRIDGE_2PIN`` を使用してください
+            # 将来のリリースで削除されます
             #
             from donkeycar.parts.actuator import ServoBlaster, PWMSteering
-            steering_controller = ServoBlaster(cfg.STEERING_CHANNEL) #really pin
-            # PWM pulse values should be in the range of 100 to 200
+            steering_controller = ServoBlaster(cfg.STEERING_CHANNEL)  # 実際のピン番号
+            # PWM パルス値は 100〜200 の範囲である必要がある
             assert(cfg.STEERING_LEFT_PWM <= 200)
             assert(cfg.STEERING_RIGHT_PWM <= 200)
             steering = PWMSteering(controller=steering_controller,
@@ -1106,8 +1185,8 @@ def add_drivetrain(V, cfg):
 
         elif cfg.DRIVE_TRAIN_TYPE == "PIGPIO_PWM":
             #
-            # This driver is DEPRECATED in favor of 'DRIVE_TRAIN_TYPE == "PWM_STEERING_THROTTLE"'
-            # This driver will be removed in a future release
+            # このドライバーは非推奨です。代わりに ``PWM_STEERING_THROTTLE`` を使用してください
+            # 将来のリリースで削除されます
             #
             from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PiGPIO_PWM
             steering_controller = PiGPIO_PWM(cfg.STEERING_PWM_PIN, freq=cfg.STEERING_PWM_FREQ,
@@ -1127,7 +1206,7 @@ def add_drivetrain(V, cfg):
     
         elif cfg.DRIVE_TRAIN_TYPE == "VESC":
             from donkeycar.parts.actuator import VESC
-            logger.info("Creating VESC at port {}".format(cfg.VESC_SERIAL_PORT))
+            logger.info("ポート {} で VESC を作成中".format(cfg.VESC_SERIAL_PORT))
             vesc = VESC(cfg.VESC_SERIAL_PORT,
                           cfg.VESC_MAX_SPEED_PERCENT,
                           cfg.VESC_HAS_SENSOR,

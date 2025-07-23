@@ -1,10 +1,8 @@
+"""`path_follow` テンプレートの設定を定義するモジュール。
+
+`manage.py` が本ファイルを読み込み、車両の性能パラメータを設定する。
+必要に応じてこのファイルで設定を上書きできるが、`update` 操作では変更されない。
 """
-PATH FOLLOWING: 'path_follow' テンプレート設定
-
-# このファイルは car アプリケーションの manage.py スクリプトによって読み込まれ、車の性能を変更します
-
-# 必要に応じてここで全ての設定を上書きできます。update 操作ではこのファイルは変更されません。
-# """
 
 import os
 
@@ -135,281 +133,237 @@ THROTTLE_PWM_FREQ = 50          # PWM の周波数
 THROTTLE_PWM_INVERTED = False   # PWM を反転する必要がある場合
 
 #
-# SERVO_HBRIDGE_2PIN drivetrain configuration
-# - configures a steering servo and an HBridge in 2pin mode (2 pwm pins)
-# - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
-#   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# - the motor is controlled by two pwm pins,
-#   one for forward and one for backward (reverse).
-# - the pwm pin produces a duty cycle from 0 (completely LOW)
-#   to 1 (100% completely high), which is proportional to the
-#   amount of power delivered to the motor.
-# - in forward mode, the reverse pwm is 0 duty_cycle,
-#   in backward mode, the forward pwm is 0 duty cycle.
-# - both pwms are 0 duty cycle (LOW) to 'detach' motor and
-#   and glide to a stop.
-# - both pwms are full duty cycle (100% HIGH) to brake
+# SERVO_HBRIDGE_2PIN 駆動系の設定
+# - ステアリングサーボと HBridge を 2 ピンモード(2 つの PWM ピン)で構成します
+# - サーボは 1ms(全逆転) 〜 2ms(全前進) の PWM パルスを受け付け、1.5ms が中立です
+# - モーターは前進用と後進用の 2 本の PWM ピンで制御されます
+# - PWM ピンのデューティ比は 0(LOW)〜1(100% HIGH) で、モーターへの供給電力に比例します
+# - 前進時は後進 PWM を 0 デューティにし、後進時は前進 PWM を 0 デューティにします
+# - 両 PWM を 0(LOW) にするとモーターを切り離して惰性で停止します
+# - 両 PWM を 100%(HIGH) にするとブレーキがかかります
 #
-# Pin specifier string format:
-# - use RPI_GPIO for RPi/Nano header pin output
-#   - use BOARD for board pin numbering
-#   - use BCM for Broadcom GPIO numbering
-#   - for example "RPI_GPIO.BOARD.18"
-# - use PIPGIO for RPi header pin output using pigpio server
-#   - must use BCM (broadcom) pin numbering scheme
-#   - for example, "PIGPIO.BCM.13"
-# - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address
-#   - for example "PCA9685.1:40.13"
-# - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
-#   although it is discouraged to mix RPI_GPIO and PIGPIO.
+# ピン指定文字列の形式:
+# - RPI_GPIO : RPi/Nano のヘッダーピン出力
+#   - BOARD : 物理ピン番号
+#   - BCM : Broadcom GPIO 番号
+#   - 例 "RPI_GPIO.BOARD.18"
+# - PIGPIO : pigpio サーバ経由で出力
+#   - BCM ピン番号方式のみ使用できます
+#   - 例 "PIGPIO.BCM.13"
+# - PCA9685 : PCA9685 のピン出力を使用
+#   - コロン区切りで I2C チャンネルとアドレスを指定
+#   - 例 "PCA9685.1:40.13"
+# - RPI_GPIO、PIGPIO、PCA9685 は自由に組み合わせ可能ですが、RPI_GPIO と PIGPIO の併用は推奨されません
 #
 SERVO_HBRIDGE_2PIN = {
-    "FWD_DUTY_PIN": "RPI_GPIO.BOARD.18",  # provides forward duty cycle to motor
-    "BWD_DUTY_PIN": "RPI_GPIO.BOARD.16",  # provides reverse duty cycle to motor
-    "PWM_STEERING_PIN": "RPI_GPIO.BOARD.33",       # provides servo pulse to steering servo
-    "PWM_STEERING_SCALE": 1.0,        # used to compensate for PWM frequency differents from 60hz; NOT for adjusting steering range
-    "PWM_STEERING_INVERTED": False,   # True if hardware requires an inverted PWM pulse
-    "STEERING_LEFT_PWM": 460,         # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
-    "STEERING_RIGHT_PWM": 290,        # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
+    "FWD_DUTY_PIN": "RPI_GPIO.BOARD.18",  # 前進用デューティ比出力ピン
+    "BWD_DUTY_PIN": "RPI_GPIO.BOARD.16",  # 後進用デューティ比出力ピン
+    "PWM_STEERING_PIN": "RPI_GPIO.BOARD.33",       # ステアリングサーボへの PWM ピン
+    "PWM_STEERING_SCALE": 1.0,        # PWM 周波数 60Hz 以外の場合の補正。舵角調整ではない
+    "PWM_STEERING_INVERTED": False,   # ハードウェアが反転 PWM を要求する場合 True
+    "STEERING_LEFT_PWM": 460,         # 左いっぱいの PWM 値（`donkey calibrate` で計測）
+    "STEERING_RIGHT_PWM": 290,        # 右いっぱいの PWM 値（`donkey calibrate` で計測）
 }
 
 #
-# SERVO_HBRIDGE_3PIN drivetrain configuration
-# - configures a steering servo and an HBridge in 3pin mode (2 ttl pins, 1 pwm pin)
-# - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
-#   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# - the motor is controlled by three pins,
-#   one ttl output for forward, one ttl output
-#   for backward (reverse) enable and one pwm pin
-#   for motor power.
-# - the pwm pin produces a duty cycle from 0 (completely LOW)
-#   to 1 (100% completely high), which is proportional to the
-#   amount of power delivered to the motor.
-# - in forward mode, the forward pin  is HIGH and the
-#   backward pin is LOW,
-# - in backward mode, the forward pin is LOW and the
-#   backward pin is HIGH.
-# - both forward and backward pins are LOW to 'detach' motor
-#   and glide to a stop.
-# - both forward and backward pins are HIGH to brake
+# SERVO_HBRIDGE_3PIN 駆動系の設定
+# - ステアリングサーボと HBridge を 3 ピンモード(2 つの TTL ピン + 1 PWM ピン)で構成します
+# - サーボは 1ms(全逆転) 〜 2ms(全前進) の PWM パルスを受け付け、1.5ms が中立です
+# - モーターは 3 本のピンで制御され、前進用 TTL、後進用 TTL、モーター電力用 PWM からなります
+# - PWM ピンのデューティ比は 0(LOW)〜1(100% HIGH) で、モーターへの供給電力に比例します
+# - 前進時は forward ピンを HIGH、backward ピンを LOW にします
+# - 後進時は forward ピンを LOW、backward ピンを HIGH にします
+# - 両 TTL ピンを LOW にするとモーターを切り離して惰性停止し、両方 HIGH でブレーキになります
 #
-# Pin specifier string format:
-# - use RPI_GPIO for RPi/Nano header pin output
-#   - use BOARD for board pin numbering
-#   - use BCM for Broadcom GPIO numbering
-#   - for example "RPI_GPIO.BOARD.18"
-# - use PIPGIO for RPi header pin output using pigpio server
-#   - must use BCM (broadcom) pin numbering scheme
-#   - for example, "PIGPIO.BCM.13"
-# - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address
-#   - for example "PCA9685.1:40.13"
-# - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
-#   although it is discouraged to mix RPI_GPIO and PIGPIO.
+# ピン指定文字列の形式:
+# - RPI_GPIO : RPi/Nano のヘッダーピン出力
+#   - BOARD : 物理ピン番号
+#   - BCM : Broadcom GPIO 番号
+#   - 例 "RPI_GPIO.BOARD.18"
+# - PIGPIO : pigpio サーバ経由で出力
+#   - BCM ピン番号方式のみ使用できます
+#   - 例 "PIGPIO.BCM.13"
+# - PCA9685 : PCA9685 のピン出力を使用
+#   - コロン区切りで I2C チャンネルとアドレスを指定
+#   - 例 "PCA9685.1:40.13"
+# - RPI_GPIO、PIGPIO、PCA9685 は自由に組み合わせ可能ですが、RPI_GPIO と PIGPIO の併用は推奨されません
 #
 SERVO_HBRIDGE_3PIN = {
-    "FWD_PIN": "RPI_GPIO.BOARD.18",   # ttl pin, high enables motor forward
-    "BWD_PIN": "RPI_GPIO.BOARD.16",   # ttl pin, high enables motor reverse
-    "DUTY_PIN": "RPI_GPIO.BOARD.35",  # provides duty cycle to motor
-    "PWM_STEERING_PIN": "RPI_GPIO.BOARD.33",   # provides servo pulse to steering servo
-    "PWM_STEERING_SCALE": 1.0,        # used to compensate for PWM frequency differents from 60hz; NOT for adjusting steering range
-    "PWM_STEERING_INVERTED": False,   # True if hardware requires an inverted PWM pulse
-    "STEERING_LEFT_PWM": 460,         # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
-    "STEERING_RIGHT_PWM": 290,        # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
+    "FWD_PIN": "RPI_GPIO.BOARD.18",   # 前進を有効にする TTL ピン
+    "BWD_PIN": "RPI_GPIO.BOARD.16",   # 後進を有効にする TTL ピン
+    "DUTY_PIN": "RPI_GPIO.BOARD.35",  # モーター出力用 PWM ピン
+    "PWM_STEERING_PIN": "RPI_GPIO.BOARD.33",   # ステアリングサーボへの PWM ピン
+    "PWM_STEERING_SCALE": 1.0,        # PWM 周波数 60Hz 以外の場合の補正。舵角調整ではない
+    "PWM_STEERING_INVERTED": False,   # ハードウェアが反転 PWM を要求する場合 True
+    "STEERING_LEFT_PWM": 460,         # 左いっぱいの PWM 値（`donkey calibrate` で計測）
+    "STEERING_RIGHT_PWM": 290,        # 右いっぱいの PWM 値（`donkey calibrate` で計測）
 }
 
 #
-# DRIVETRAIN_TYPE == "SERVO_HBRIDGE_PWM" (deprecated in favor of SERVO_HBRIDGE_2PIN)
-# - configures a steering servo and an HBridge in 2pin mode (2 pwm pins)
-# - Uses ServoBlaster library, which is NOT installed by default, so
-#   you will need to install it to make this work.
-# - Servo takes a standard servo PWM pulse between 1 millisecond (fully reverse)
-#   and 2 milliseconds (full forward) with 1.5ms being neutral.
-# - the motor is controlled by two pwm pins,
-#   one for forward and one for backward (reverse).
-# - the pwm pins produce a duty cycle from 0 (completely LOW)
-#   to 1 (100% completely high), which is proportional to the
-#   amount of power delivered to the motor.
-# - in forward mode, the reverse pwm is 0 duty_cycle,
-#   in backward mode, the forward pwm is 0 duty cycle.
-# - both pwms are 0 duty cycle (LOW) to 'detach' motor and
-#   and glide to a stop.
-# - both pwms are full duty cycle (100% HIGH) to brake
+# DRIVETRAIN_TYPE == "SERVO_HBRIDGE_PWM" (SERVO_HBRIDGE_2PIN 推奨のため非推奨)
+# - ステアリングサーボと HBridge を 2 ピンモード（PWM ピンを 2 本使用）で構成
+# - ServoBlaster ライブラリを利用するが標準ではインストールされていないため、
+#   使用するにはインストールが必要
+# - サーボは 1 ミリ秒（全逆転）〜 2 ミリ秒（全前進）の PWM パルスを受け取り、
+#   1.5 ミリ秒が中立
+# - モーターは前進用と後進用の 2 本の PWM ピンで制御される
+# - PWM ピンは 0（完全 LOW）〜1（完全 HIGH）のデューティ比を出力し、
+#   モーターへの供給電力に比例する
+# - 前進時は逆転 PWM を 0 デューティ、後進時は前進 PWM を 0 デューティにする
+# - 両 PWM を 0（LOW）にするとモーターを切り離して惰性停止し、
+#   両 PWM を 100%（HIGH）にするとブレーキがかかる
 #
-HBRIDGE_PIN_FWD = 18       # provides forward duty cycle to motor
-HBRIDGE_PIN_BWD = 16       # provides reverse duty cycle to motor
-STEERING_CHANNEL = 0       # PCA 9685 channel for steering control
-STEERING_LEFT_PWM = 460    # pwm value for full left steering (use `donkey calibrate` to measure value for your car)
-STEERING_RIGHT_PWM = 290   # pwm value for full right steering (use `donkey calibrate` to measure value for your car)
+HBRIDGE_PIN_FWD = 18       # 前進用デューティ比を出力するピン
+HBRIDGE_PIN_BWD = 16       # 後進用デューティ比を出力するピン
+STEERING_CHANNEL = 0       # ステアリング制御用の PCA9685 チャンネル
+STEERING_LEFT_PWM = 460    # 左いっぱいの PWM 値（`donkey calibrate` で計測）
+STEERING_RIGHT_PWM = 290   # 右いっぱいの PWM 値（`donkey calibrate` で計測）
 
 #
-# DC_STEER_THROTTLE drivetrain with one motor as steering, one as drive
-# - uses L298N type motor controller in two pin wiring
-#   scheme utilizing two pwm pins per motor; one for
-#   forward(or right) and one for reverse (or left)
+# DC_STEER_THROTTLE 駆動系: 1 つのモーターで操舵し、もう 1 つで走行します
+# - L298N 型モータードライバーを 2 ピン配線で利用し、各モーターにつき前進/後進用の PWM ピンを使用します
 #
-# GPIO pin configuration for the DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE
-# - use RPI_GPIO for RPi/Nano header pin output
-#   - use BOARD for board pin numbering
-#   - use BCM for Broadcom GPIO numbering
-#   - for example "RPI_GPIO.BOARD.18"
-# - use PIPGIO for RPi header pin output using pigpio server
-#   - must use BCM (broadcom) pin numbering scheme
-#   - for example, "PIGPIO.BCM.13"
-# - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address
-#   - for example "PCA9685.1:40.13"
-# - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
-#   although it is discouraged to mix RPI_GPIO and PIGPIO.
+# DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE の GPIO ピン設定
+# - RPI_GPIO : RPi/Nano のヘッダーピン出力
+#   - BOARD : 物理ピン番号
+#   - BCM : Broadcom GPIO 番号
+#   - 例 "RPI_GPIO.BOARD.18"
+# - PIGPIO : pigpio サーバ経由で出力
+#   - BCM ピン番号方式のみ使用できます
+#   - 例 "PIGPIO.BCM.13"
+# - PCA9685 : PCA9685 のピン出力を使用
+#   - コロン区切りで I2C チャンネルとアドレスを指定
+#   - 例 "PCA9685.1:40.13"
+# - RPI_GPIO、PIGPIO、PCA9685 は自由に混在できますが、RPI_GPIO と PIGPIO の併用は推奨されません
 #
 DC_STEER_THROTTLE = {
-    "LEFT_DUTY_PIN": "RPI_GPIO.BOARD.18",   # pwm pin produces duty cycle for steering left
-    "RIGHT_DUTY_PIN": "RPI_GPIO.BOARD.16",  # pwm pin produces duty cycle for steering right
-    "FWD_DUTY_PIN": "RPI_GPIO.BOARD.15",    # pwm pin produces duty cycle for forward drive
-    "BWD_DUTY_PIN": "RPI_GPIO.BOARD.13",    # pwm pin produces duty cycle for reverse drive
+    "LEFT_DUTY_PIN": "RPI_GPIO.BOARD.18",   # 左舵用デューティ比出力ピン
+    "RIGHT_DUTY_PIN": "RPI_GPIO.BOARD.16",  # 右舵用デューティ比出力ピン
+    "FWD_DUTY_PIN": "RPI_GPIO.BOARD.15",    # 前進用デューティ比出力ピン
+    "BWD_DUTY_PIN": "RPI_GPIO.BOARD.13",    # 後進用デューティ比出力ピン
 }
 
 #
-# DC_TWO_WHEEL drivetrain pin configuration
-# - configures L298N_HBridge_2pin driver
-# - two wheels as differential drive, left and right.
-# - each wheel is controlled by two pwm pins,
-#   one for forward and one for backward (reverse).
-# - each pwm pin produces a duty cycle from 0 (completely LOW)
-#   to 1 (100% completely high), which is proportional to the
-#   amount of power delivered to the motor.
-# - in forward mode, the reverse pwm is 0 duty_cycle,
-#   in backward mode, the forward pwm is 0 duty cycle.
-# - both pwms are 0 duty cycle (LOW) to 'detach' motor and
-#   and glide to a stop.
-# - both pwms are full duty cycle (100% HIGH) to brake
+# DC_TWO_WHEEL 駆動系のピン設定
+# - L298N_HBridge_2pin ドライバーを利用した左右独立駆動です
+# - 各車輪は前進・後進用の 2 本の PWM ピンで制御されます
+# - PWM ピンのデューティ比は 0(LOW)〜1(100% HIGH) で、モーターへの供給電力に比例します
+# - 前進時は後進 PWM を 0、後進時は前進 PWM を 0 にします
+# - 両 PWM を 0(LOW) にするとモーターが切り離され惰性停止し、100%(HIGH) でブレーキとなります
 #
-# Pin specifier string format:
-# - use RPI_GPIO for RPi/Nano header pin output
-#   - use BOARD for board pin numbering
-#   - use BCM for Broadcom GPIO numbering
-#   - for example "RPI_GPIO.BOARD.18"
-# - use PIPGIO for RPi header pin output using pigpio server
-#   - must use BCM (broadcom) pin numbering scheme
-#   - for example, "PIGPIO.BCM.13"
-# - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address
-#   - for example "PCA9685.1:40.13"
-# - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
-#   although it is discouraged to mix RPI_GPIO and PIGPIO.
+# ピン指定文字列の形式:
+# - RPI_GPIO : RPi/Nano のヘッダーピン出力
+#   - BOARD : 物理ピン番号
+#   - BCM : Broadcom GPIO 番号
+#   - 例 "RPI_GPIO.BOARD.18"
+# - PIGPIO : pigpio サーバ経由で出力
+#   - BCM ピン番号方式のみ使用できます
+#   - 例 "PIGPIO.BCM.13"
+# - PCA9685 : PCA9685 のピン出力を使用
+#   - コロン区切りで I2C チャンネルとアドレスを指定
+#   - 例 "PCA9685.1:40.13"
+# - RPI_GPIO、PIGPIO、PCA9685 は自由に混在できますが、RPI_GPIO と PIGPIO の併用は推奨されません
 #
 DC_TWO_WHEEL = {
-    "LEFT_FWD_DUTY_PIN": "RPI_GPIO.BOARD.18",  # pwm pin produces duty cycle for left wheel forward
-    "LEFT_BWD_DUTY_PIN": "RPI_GPIO.BOARD.16",  # pwm pin produces duty cycle for left wheel reverse
-    "RIGHT_FWD_DUTY_PIN": "RPI_GPIO.BOARD.15", # pwm pin produces duty cycle for right wheel forward
-    "RIGHT_BWD_DUTY_PIN": "RPI_GPIO.BOARD.13", # pwm pin produces duty cycle for right wheel reverse
+    "LEFT_FWD_DUTY_PIN": "RPI_GPIO.BOARD.18",  # 左輪前進用デューティ比出力ピン
+    "LEFT_BWD_DUTY_PIN": "RPI_GPIO.BOARD.16",  # 左輪後進用デューティ比出力ピン
+    "RIGHT_FWD_DUTY_PIN": "RPI_GPIO.BOARD.15", # 右輪前進用デューティ比出力ピン
+    "RIGHT_BWD_DUTY_PIN": "RPI_GPIO.BOARD.13", # 右輪後進用デューティ比出力ピン
 }
 
 #
-# DC_TWO_WHEEL_L298N drivetrain pin configuration
-# - configures L298N_HBridge_3pin driver
-# - two wheels as differential drive, left and right.
-# - each wheel is controlled by three pins,
-#   one ttl output for forward, one ttl output
-#   for backward (reverse) enable and one pwm pin
-#   for motor power.
-# - the pwm pin produces a duty cycle from 0 (completely LOW)
-#   to 1 (100% completely high), which is proportional to the
-#   amount of power delivered to the motor.
-# - in forward mode, the forward pin  is HIGH and the
-#   backward pin is LOW,
-# - in backward mode, the forward pin is LOW and the
-#   backward pin is HIGH.
-# - both forward and backward pins are LOW to 'detach' motor
-#   and glide to a stop.
-# - both forward and backward pins are HIGH to brake
+# DC_TWO_WHEEL_L298N 駆動系のピン設定
+# - L298N_HBridge_3pin ドライバーを使用した左右独立駆動です
+# - 各車輪は 3 本のピンで制御され、前進用 TTL、後進用 TTL、モーター電力用 PWM から構成されます
+# - PWM ピンのデューティ比は 0(LOW)〜1(100% HIGH) で、モーターへの供給電力に比例します
+# - 前進時は forward ピンを HIGH、backward ピンを LOW にします
+# - 後進時は forward ピンを LOW、backward ピンを HIGH にします
+# - 両 TTL ピンを LOW にするとモーターを切り離し惰性停止、両方 HIGH でブレーキとなります
 #
-# GPIO pin configuration for the DRIVE_TRAIN_TYPE=DC_TWO_WHEEL_L298N
-# - use RPI_GPIO for RPi/Nano header pin output
-#   - use BOARD for board pin numbering
-#   - use BCM for Broadcom GPIO numbering
-#   - for example "RPI_GPIO.BOARD.18"
-# - use PIPGIO for RPi header pin output using pigpio server
-#   - must use BCM (broadcom) pin numbering scheme
-#   - for example, "PIGPIO.BCM.13"
-# - use PCA9685 for PCA9685 pin output
-#   - include colon separated I2C channel and address
-#   - for example "PCA9685.1:40.13"
-# - RPI_GPIO, PIGPIO and PCA9685 can be mixed arbitrarily,
-#   although it is discouraged to mix RPI_GPIO and PIGPIO.
+# DRIVE_TRAIN_TYPE=DC_TWO_WHEEL_L298N の GPIO ピン設定
+# - RPI_GPIO : RPi/Nano のヘッダーピン出力
+#   - BOARD : 物理ピン番号
+#   - BCM : Broadcom GPIO 番号
+#   - 例 "RPI_GPIO.BOARD.18"
+# - PIGPIO : pigpio サーバ経由で出力
+#   - BCM ピン番号方式のみ使用できます
+#   - 例 "PIGPIO.BCM.13"
+# - PCA9685 : PCA9685 のピン出力を使用
+#   - コロン区切りで I2C チャンネルとアドレスを指定
+#   - 例 "PCA9685.1:40.13"
+# - RPI_GPIO、PIGPIO、PCA9685 は自由に混在できますが、RPI_GPIO と PIGPIO の併用は推奨されません
 #
 DC_TWO_WHEEL_L298N = {
-    "LEFT_FWD_PIN": "RPI_GPIO.BOARD.16",        # TTL output pin enables left wheel forward
-    "LEFT_BWD_PIN": "RPI_GPIO.BOARD.18",        # TTL output pin enables left wheel reverse
-    "LEFT_EN_DUTY_PIN": "RPI_GPIO.BOARD.22",    # PWM pin generates duty cycle for left motor speed
+    "LEFT_FWD_PIN": "RPI_GPIO.BOARD.16",        # 左輪前進を有効にする TTL ピン
+    "LEFT_BWD_PIN": "RPI_GPIO.BOARD.18",        # 左輪後進を有効にする TTL ピン
+    "LEFT_EN_DUTY_PIN": "RPI_GPIO.BOARD.22",    # 左モーター速度用 PWM ピン
 
-    "RIGHT_FWD_PIN": "RPI_GPIO.BOARD.15",       # TTL output pin enables right wheel forward
-    "RIGHT_BWD_PIN": "RPI_GPIO.BOARD.13",       # TTL output pin enables right wheel reverse
-    "RIGHT_EN_DUTY_PIN": "RPI_GPIO.BOARD.11",   # PWM pin generates duty cycle for right wheel speed
+    "RIGHT_FWD_PIN": "RPI_GPIO.BOARD.15",       # 右輪前進を有効にする TTL ピン
+    "RIGHT_BWD_PIN": "RPI_GPIO.BOARD.13",       # 右輪後進を有効にする TTL ピン
+    "RIGHT_EN_DUTY_PIN": "RPI_GPIO.BOARD.11",   # 右モーター速度用 PWM ピン
 }
 
 
 
 #
-# Input controllers
+# 入力コントローラ
 #
 #WEB CONTROL
-WEB_CONTROL_PORT = int(os.getenv("WEB_CONTROL_PORT", 8887))  # which port to listen on when making a web controller
-WEB_INIT_MODE = "user"              # which control mode to start in. one of user|local_angle|local. Setting local will start in ai mode.
+WEB_CONTROL_PORT = int(os.getenv("WEB_CONTROL_PORT", 8887))  # Web コントローラが待ち受けるポート番号
+WEB_INIT_MODE = "user"              # 起動時のモード。user|local_angle|local のいずれか。local なら AI モードで開始
 
 #JOYSTICK
-USE_JOYSTICK_AS_DEFAULT = False      #when starting the manage.py, when True, will not require a --js option to use the joystick
-JOYSTICK_MAX_THROTTLE = 0.5         #this scalar is multiplied with the -1 to 1 throttle value to limit the maximum throttle. This can help if you drop the controller or just don't need the full speed available.
-JOYSTICK_STEERING_SCALE = 1.0       #some people want a steering that is less sensitve. This scalar is multiplied with the steering -1 to 1. It can be negative to reverse dir.
-AUTO_RECORD_ON_THROTTLE = False     #if true, we will record whenever throttle is not zero. if false, you must manually toggle recording with some other trigger. Usually circle button on joystick.
-CONTROLLER_TYPE = 'xbox'            #(ps3|ps4|xbox|pigpio_rc|nimbus|wiiu|F710|rc3|MM1|custom) custom will run the my_joystick.py controller written by the `donkey createjs` command
-USE_NETWORKED_JS = False            #should we listen for remote joystick control over the network?
-NETWORK_JS_SERVER_IP = None         #when listening for network joystick control, which ip is serving this information
-JOYSTICK_DEADZONE = 0.01            # when non zero, this is the smallest throttle before recording triggered.
-JOYSTICK_THROTTLE_DIR = -1.0         # use -1.0 to flip forward/backward, use 1.0 to use joystick's natural forward/backward
-USE_FPV = False                     # send camera data to FPV webserver
-JOYSTICK_DEVICE_FILE = "/dev/input/js0" # this is the unix file use to access the joystick.
+USE_JOYSTICK_AS_DEFAULT = False      # True なら manage.py 起動時に --js オプション不要
+JOYSTICK_MAX_THROTTLE = 0.5         # -1〜1 のスロットル値に掛けて最大速度を制限する係数
+JOYSTICK_STEERING_SCALE = 1.0       # ステアリング感度の調整係数。負値で方向反転
+AUTO_RECORD_ON_THROTTLE = False     # True ならスロットルが 0 でないとき常に録画。False なら別のトリガーで切替
+CONTROLLER_TYPE = 'xbox'            #(ps3|ps4|xbox|pigpio_rc|nimbus|wiiu|F710|rc3|MM1|custom) custom は `donkey createjs` 生成の my_joystick.py を使用
+USE_NETWORKED_JS = False            # ネットワーク越しのジョイスティック入力を受け付けるか
+NETWORK_JS_SERVER_IP = None         # ネットワークジョイスティック使用時に接続するサーバ IP
+JOYSTICK_DEADZONE = 0.01            # この値以下のスロットルでは録画を開始しない
+JOYSTICK_THROTTLE_DIR = -1.0         # -1.0 で前後を反転、1.0 で自然な方向
+USE_FPV = False                     # カメラ映像を FPV Web サーバへ送信
+JOYSTICK_DEVICE_FILE = "/dev/input/js0" # ジョイスティックのデバイスファイル
 
 
 #SOMBRERO
-HAVE_SOMBRERO = False           #set to true when using the sombrero hat from the Donkeycar store. This will enable pwm on the hat.
+HAVE_SOMBRERO = False           # Donkeycar ストアの Sombrero Hat 使用時は True にして PWM を有効化
 
-#PIGPIO RC control
+#PIGPIO RC コントロール
 STEERING_RC_GPIO = 26
 THROTTLE_RC_GPIO = 20
 DATA_WIPER_RC_GPIO = 19
-PIGPIO_STEERING_MID = 1500         # Adjust this value if your car cannot run in a straight line
-PIGPIO_MAX_FORWARD = 2000          # Max throttle to go fowrward. The bigger the faster
+PIGPIO_STEERING_MID = 1500         # 直進できない場合に調整する値
+PIGPIO_MAX_FORWARD = 2000          # 最大前進スロットル値。大きいほど速い
 PIGPIO_STOPPED_PWM = 1500
-PIGPIO_MAX_REVERSE = 1000          # Max throttle to go reverse. The smaller the faster
+PIGPIO_MAX_REVERSE = 1000          # 最大後進スロットル値。小さいほど速い
 PIGPIO_SHOW_STEERING_VALUE = False
 PIGPIO_INVERT = False
-PIGPIO_JITTER = 0.025   # threshold below which no signal is reported
+PIGPIO_JITTER = 0.025   # この値未満では信号がないものとみなす
 
 
-# ROBOHAT MM1 controller
-MM1_STEERING_MID = 1500         # Adjust this value if your car cannot run in a straight line
-MM1_MAX_FORWARD = 2000          # Max throttle to go fowrward. The bigger the faster
+# ROBOHAT MM1 コントローラ
+MM1_STEERING_MID = 1500         # 直進できない場合に調整する値
+MM1_MAX_FORWARD = 2000          # 最大前進スロットル値。大きいほど速い
 MM1_STOPPED_PWM = 1500
-MM1_MAX_REVERSE = 1000          # Max throttle to go reverse. The smaller the faster
+MM1_MAX_REVERSE = 1000          # 最大後進スロットル値。小さいほど速い
 MM1_SHOW_STEERING_VALUE = False
-# Serial port
-# -- Default Pi: '/dev/ttyS0'
+# シリアルポート
+# -- Pi の既定: '/dev/ttyS0'
 # -- Jetson Nano: '/dev/ttyTHS1'
-# -- Google coral: '/dev/ttymxc0'
+# -- Google Coral: '/dev/ttymxc0'
 # -- Windows: 'COM3', Arduino: '/dev/ttyACM0'
-# -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1
-#  eg.'/dev/tty.usbmodemXXXXXX' and replace the port accordingly
-MM1_SERIAL_PORT = '/dev/ttyS0'  # Serial Port for reading and sending MM1 data.
+# -- MacOS/Linux: 適切なポートを `ls /dev/tty.*` で確認して置き換える
+#  例: '/dev/tty.usbmodemXXXXXX'
+MM1_SERIAL_PORT = '/dev/ttyS0'  # MM1 とのデータ送受信用シリアルポート
 
 
 #
 # LOGGING
 #
 HAVE_CONSOLE_LOGGING = True
-LOGGING_LEVEL = 'INFO'          # (Python logging level) 'NOTSET' / 'DEBUG' / 'INFO' / 'WARNING' / 'ERROR' / 'FATAL' / 'CRITICAL'
-LOGGING_FORMAT = '%(message)s'  # (Python logging format - https://docs.python.org/3/library/logging.html#formatter-objects
+LOGGING_LEVEL = 'INFO'          # Python のログレベル: 'NOTSET' / 'DEBUG' / 'INFO' / 'WARNING' / 'ERROR' / 'FATAL' / 'CRITICAL'
+LOGGING_FORMAT = '%(message)s'  # Python のログフォーマット - https://docs.python.org/3/library/logging.html#formatter-objects
 
 
 #
@@ -438,18 +392,20 @@ HAVE_PERFMON = False
 #
 # RECORD OPTIONS
 #
-RECORD_DURING_AI = False        #normally we do not record during ai mode. Set this to true to get image and steering records for your Ai. Be careful not to use them to train.
-AUTO_CREATE_NEW_TUB = False     #create a new tub (tub_YY_MM_DD) directory when recording or append records to data directory directly
+RECORD_DURING_AI = False        # 通常 AI モードでは録画しない。True にすると AI の画像とステアリングを記録するが、学習には使用しないこと
+AUTO_CREATE_NEW_TUB = False     # True なら録画開始時に新しい tub (tub_YY_MM_DD) ディレクトリを作成。False なら既存ディレクトリに追加
 
 
 #
 # LED
 #
-HAVE_RGB_LED = False            #do you have an RGB LED like https://www.amazon.com/dp/B07BNRZWNF
-LED_INVERT = False              #COMMON ANODE? Some RGB LED use common anode. like https://www.amazon.com/Xia-Fly-Tri-Color-Emitting-Diffused/dp/B07MYJQP8B
+# RGB LED を使う場合は True にする (例: https://www.amazon.com/dp/B07BNRZWNF)
+HAVE_RGB_LED = False
+# 共通アノードの LED を使う場合は True (例: https://www.amazon.com/Xia-Fly-Tri-Color-Emitting-Diffused/dp/B07MYJQP8B)
+LED_INVERT = False
 
-#LED board pin number for pwm outputs
-#These are physical pinouts. See: https://www.raspberrypi-spy.co.uk/2012/06/simple-guide-to-the-rpi-gpio-header-and-pins/
+#PWM 出力用 LED ボードのピン番号
+# これは物理ピン番号。参考: https://www.raspberrypi-spy.co.uk/2012/06/simple-guide-to-the-rpi-gpio-header-and-pins/
 LED_PIN_R = 12
 LED_PIN_G = 10
 LED_PIN_B = 16
@@ -460,12 +416,12 @@ LED_G = 0
 LED_B = 1
 
 #LED Color for record count indicator
-REC_COUNT_ALERT = 1000          #how many records before blinking alert
-REC_COUNT_ALERT_CYC = 15        #how many cycles of 1/20 of a second to blink per REC_COUNT_ALERT records
-REC_COUNT_ALERT_BLINK_RATE = 0.4 #how fast to blink the led in seconds on/off
+REC_COUNT_ALERT = 1000          # この件数を超えたら点滅で通知
+REC_COUNT_ALERT_CYC = 15        # REC_COUNT_ALERT 件ごとに点滅するサイクル数(1/20秒単位)
+REC_COUNT_ALERT_BLINK_RATE = 0.4 # LED 点滅のオンオフ周期(秒)
 
-#first number is record count, second tuple is color ( r, g, b) (0-100)
-#when record count exceeds that number, the color will be used
+# 最初の数値がレコード数、2 番目のタプルが色 (r, g, b) (0-100)
+# レコード数がその値を超えると指定した色を使用
 RECORD_ALERT_COLOR_ARR = [ (0, (1, 1, 1)),
             (3000, (5, 5, 5)),
             (5000, (5, 2, 0)),
@@ -482,74 +438,73 @@ MODEL_RELOADED_LED_B = 0
 #
 # DonkeyGym
 #
-# Only on Ubuntu linux, you can use the simulator as a virtual donkey and
-# issue the same python manage.py drive command as usual, but have them control a virtual car.
-# This enables that, and sets the path to the simualator and the environment.
-# You will want to download the simulator binary from: https://github.com/tawnkramer/donkey_gym/releases/download/v18.9/DonkeySimLinux.zip
-# then extract that and modify DONKEY_SIM_PATH.
+# Ubuntu Linux 環境のみ、シミュレータを仮想ドンキーとして使用し
+# 通常の `python manage.py drive` コマンドで仮想車を操作できます。
+# そのための設定で、シミュレータ実行ファイルのパスや環境を指定します。
+# https://github.com/tawnkramer/donkey_gym/releases/download/v18.9/DonkeySimLinux.zip からバイナリを取得し、展開後 DONKEY_SIM_PATH を修正してください。
 DONKEY_GYM = False
-DONKEY_SIM_PATH = "path to sim" #"/home/tkramer/projects/sdsandbox/sdsim/build/DonkeySimLinux/donkey_sim.x86_64" when racing on virtual-race-league use "remote", or user "remote" when you want to start the sim manually first.
+DONKEY_SIM_PATH = "シミュレータのパス" # 仮想レースリーグで走らせる場合は "remote" を指定。手動でシムを起動する場合も "remote" を使用
 DONKEY_GYM_ENV_NAME = "donkey-generated-track-v0" # ("donkey-generated-track-v0"|"donkey-generated-roads-v0"|"donkey-warehouse-v0"|"donkey-avc-sparkfun-v0")
 GYM_CONF = { "body_style" : "donkey", "body_rgb" : (128, 128, 128), "car_name" : "car", "font_size" : 100} # body style(donkey|bare|car01) body rgb 0-255
-GYM_CONF["racer_name"] = "Your Name"
-GYM_CONF["country"] = "Place"
-GYM_CONF["bio"] = "I race robots."
+GYM_CONF["racer_name"] = "あなたの名前"
+GYM_CONF["country"] = "場所"
+GYM_CONF["bio"] = "私はロボットレースをします。"
 
-SIM_HOST = "127.0.0.1"              # when racing on virtual-race-league use host "trainmydonkey.com"
-SIM_ARTIFICIAL_LATENCY = 0          # this is the millisecond latency in controls. Can use useful in emulating the delay when useing a remote server. values of 100 to 400 probably reasonable.
+SIM_HOST = "127.0.0.1"              # 仮想レースリーグでは "trainmydonkey.com" を使用
+SIM_ARTIFICIAL_LATENCY = 0          # 操作遅延のエミュレート用ミリ秒単位遅延。リモートサーバ利用時は 100～400 が適当
 
-# Save info from Simulator (pln)
+# シミュレータから情報を保存 (pln)
 SIM_RECORD_LOCATION = False
 SIM_RECORD_GYROACCEL= False
 SIM_RECORD_VELOCITY = False
 SIM_RECORD_LIDAR = False
 
-# publish camera over network on TCP socket
-# This is used to create a tcp service to publish the camera feed
+# TCP ソケット経由でカメラ画像を配信
+# カメラ映像を公開する TCP サービスを作成する際に使用
 PUB_CAMERA_IMAGES = False
 
 
 #
 # AI Overrides
 #
-# Launch mode: override AI at launch time (transition from user to Auto pilot).
-AI_LAUNCH_DURATION = 0.0            # the ai will output throttle for this many seconds
-AI_LAUNCH_THROTTLE = 0.0            # the ai will output this throttle value
-AI_LAUNCH_ENABLE_BUTTON = 'R2'      # this keypress will enable this boost. It must be enabled before each use to prevent accidental trigger.
-AI_LAUNCH_KEEP_ENABLED = False      # when False ( default) you will need to hit the AI_LAUNCH_ENABLE_BUTTON for each use. This is safest. When this True, is active on each trip into "local" ai mode.
+# 起動時に AI を優先してスロットルを出力するランチモード設定
+AI_LAUNCH_DURATION = 0.0            # AI がスロットルを出力する時間(秒)
+AI_LAUNCH_THROTTLE = 0.0            # AI が出力するスロットル値
+AI_LAUNCH_ENABLE_BUTTON = 'R2'      # このキーを押すとブーストが有効になる。誤動作防止のため毎回有効化する必要あり
+AI_LAUNCH_KEEP_ENABLED = False      # False の場合、AI_LAUNCH_ENABLE_BUTTON を都度押す必要がある。True だと local モードに入るたび自動で有効
 
-# throttle scaling: scale the output of the throttle of the ai pilot for all model types.
-AI_THROTTLE_MULT = 1.0              # this multiplier will scale every throttle value for all output from NN models
-
-
-#
-# Intel Realsense D435 and D435i depth sensing camera
-#
-REALSENSE_D435_RGB = True       # True to capture RGB image
-REALSENSE_D435_DEPTH = False    # True to capture depth as image array
-REALSENSE_D435_IMU = False      # True to capture IMU data (D435i only)
-REALSENSE_D435_ID = None        # serial number of camera or None if you only have one camera (it will autodetect)
+# スロットル出力スケール: すべてのモデルで AI パイロットのスロットル値に乗算
+AI_THROTTLE_MULT = 1.0              # すべての NN モデルのスロットル値に掛ける倍率
 
 
 #
-# Stop Sign Detector
+# Intel Realsense D435/D435i 深度認識カメラ
+#
+REALSENSE_D435_RGB = True       # RGB 画像を取得する場合は True
+REALSENSE_D435_DEPTH = False    # 深度画像を取得する場合は True
+REALSENSE_D435_IMU = False      # D435i の場合に IMU データを取得するなら True
+REALSENSE_D435_ID = None        # カメラのシリアル番号。1 台のみなら None で自動検出
+
+
+#
+# 一時停止標識検出
 #
 STOP_SIGN_DETECTOR = False
 STOP_SIGN_MIN_SCORE = 0.2
 STOP_SIGN_SHOW_BOUNDING_BOX = True
-STOP_SIGN_MAX_REVERSE_COUNT = 10    # How many times should the car reverse when detected a stop sign, set to 0 to disable reversing
-STOP_SIGN_REVERSE_THROTTLE = -0.5     # Throttle during reversing when detected a stop sign
+STOP_SIGN_MAX_REVERSE_COUNT = 10    # 停止標識検出時に何回バックするか。0 でバック無効
+STOP_SIGN_REVERSE_THROTTLE = -0.5     # 停止標識検出時にバックする際のスロットル
 
 #
-# Frames/Second counter
+# FPS 計測
 #
 SHOW_FPS = False
-FPS_DEBUG_INTERVAL = 10    # the interval in seconds for printing the frequency info into the shell
+FPS_DEBUG_INTERVAL = 10    # 周波数情報を表示する間隔(秒)
 
 #
-# computer vision template
+# コンピュータビジョン用テンプレート
 #
-# configure which part is used as the autopilot - change to use your own autopilot
+# どのパーツを自動操縦に使うか設定する。必要に応じて自作の autopilot に変更
 CV_CONTROLLER_MODULE = "donkeycar.parts.line_follower"
 CV_CONTROLLER_CLASS = "LineFollower"
 CV_CONTROLLER_INPUTS = ['cam/image_array']
@@ -557,56 +512,54 @@ CV_CONTROLLER_OUTPUTS = ['pilot/steering', 'pilot/throttle', 'cv/image_array']
 CV_CONTROLLER_CONDITION = "run_pilot"
 
 # LineFollower - line color and detection area
-SCAN_Y = 100          # num pixels from the top to start horiz scan
-SCAN_HEIGHT = 20      # num pixels high to grab from horiz scan
-COLOR_THRESHOLD_LOW  = (0, 50, 50)    # HSV dark yellow (opencv HSV hue value is 0..179, saturation and value are both 0..255)
-COLOR_THRESHOLD_HIGH = (50, 255, 255) # HSV light yellow (opencv HSV hue value is 0..179, saturation and value are both 0..255)
+SCAN_Y = 100          # 上端から走査を開始する画素数
+SCAN_HEIGHT = 20      # 走査範囲の高さ(ピクセル)
+COLOR_THRESHOLD_LOW  = (0, 50, 50)    # HSV での濃い黄色 (opencv HSV 色相は 0..179、彩度と明度は 0..255)
+COLOR_THRESHOLD_HIGH = (50, 255, 255) # HSV での明るい黄色 (opencv HSV 色相は 0..179、彩度と明度は 0..255)
 
-# LineFollower - target (expected) line position and detection thresholds
-TARGET_PIXEL = None   # In not None, then this is the expected horizontal position in pixels of the yellow line.
-                      # If None, then detect the position yellow line at startup;
-                      # so this assumes you have positioned the car prior to starting.
-                      # Alternatively set this to IMAGE_W / 2 to follow middle line
-TARGET_THRESHOLD = 10 # number of pixels from TARGET_PIXEL that vehicle must be pointing
-                      # before a steering change will be made; this prevents algorithm
-                      # from being too twitchy when it is on or near the line.
-CONFIDENCE_THRESHOLD = 0.0015   # The fraction of total sampled pixels that must be yellow in the sample slice.
-                                # The sample slice will have SCAN_HEIGHT pixels and the total number
-                                # of sampled pixels is IMAGE_W x SCAN_HEIGHT, so if you want to make sure
-                                # that all the pixels in the sample slice are yellow, then the confidence
-                                # threshold should be SCAN_HEIGHT / (IMAGE_W x SCAN_HEIGHT) or (1 / IMAGE_W).
-                                # if you want half of the pixels in the slice to match hten (1 / IMAGE_W) / 2.
-                                # If you keep getting `No line detected` logs in the console then you
-                                # may want to lower the threshold.
+# LineFollower - 期待するライン位置と検出閾値
+TARGET_PIXEL = None   # None でなければ黄色ラインの想定水平位置(ピクセル)
+                      # None の場合、起動時にライン位置を検出する。
+                      # そのため起動前に車を適切な位置へ置いておく必要がある。
+                      # あるいは IMAGE_W / 2 を設定して中央ラインに追従させる
+TARGET_THRESHOLD = 10 # 車両が向くべき TARGET_PIXEL からの許容ピクセル数
+                      # この幅を超えたらステアリングを変更; これによりアルゴリズムの過剰反応を抑制
+                      # ライン上または近くにあるときに車が過敏になりすぎるのを防ぐ
+CONFIDENCE_THRESHOLD = 0.0015   # サンプル範囲内で黄色と判定されるピクセルの割合
+                                # サンプル範囲の高さは SCAN_HEIGHT ピクセルで、総サンプル数は IMAGE_W x SCAN_HEIGHT
+                                # 全ピクセルを黄色と判定させたい場合、閾値は SCAN_HEIGHT / (IMAGE_W x SCAN_HEIGHT) または (1 / IMAGE_W)
+                                # サンプル領域の半分を黄色とみなしたいなら (1 / IMAGE_W) / 2
+                                # コンソールに `No line detected` が頻出する場合は
+                                # 閾値を下げてください
 
-# LineFollower - throttle step controller; increase throttle on straights, descrease on turns
-THROTTLE_MAX = 0.3    # maximum throttle value the controller will produce
-THROTTLE_MIN = 0.15   # minimum throttle value the controller will produce
-THROTTLE_INITIAL = THROTTLE_MIN  # initial throttle value
-THROTTLE_STEP = 0.05  # how much to change throttle when off the line
+# LineFollower - ストレートで加速しカーブで減速するスロットルステップコントローラー
+THROTTLE_MAX = 0.3    # コントローラが出力する最大スロットル値
+THROTTLE_MIN = 0.15   # コントローラが出力する最小スロットル値
+THROTTLE_INITIAL = THROTTLE_MIN  # 初期スロットル値
+THROTTLE_STEP = 0.05  # ラインを外れた際のスロットル変化量
 
-# These three PID constants are crucial to the way the car drives. If you are tuning them
-# start by setting the others zero and focus on first Kp, then Kd, and then Ki.
-PID_P = -0.01         # proportional mult for PID path follower
-PID_I = 0.000         # integral mult for PID path follower
-PID_D = -0.0001       # differential mult for PID path follower
+# これら 3 つの PID 定数は走行特性を大きく左右する。調整する際はまず他を 0 にして
+# Kp、次に Kd、最後に Ki の順で設定する
+PID_P = -0.01         # PID 制御の比例項
+PID_I = 0.000         # PID 制御の積分項
+PID_D = -0.0001       # PID 制御の微分項
 
-PID_P_DELTA = 0.005   # amount the inc/dec function will change the P value
-PID_D_DELTA = 0.00005 # amount the inc/dec function will change the D value
+PID_P_DELTA = 0.005   # P 値を増減させる量
+PID_D_DELTA = 0.00005 # D 値を増減させる量
 
-OVERLAY_IMAGE = True  # True to draw computer vision overlay on camera image in web ui
-                      # NOTE: this does not affect what is saved to the data
+OVERLAY_IMAGE = True  # True で Web UI のカメラ画像に CV オーバーレイを表示
+                      # 注意: 保存されるデータには影響しない
 
 
 #
-# Assign path follow functions to buttons.
-# You can use game pad buttons OR web ui buttons ('web/w1' to 'web/w5')
-# Use None use the game controller default
-# NOTE: the cross button is already reserved for the emergency stop
+# ボタンにパスフォロー機能を割り当てる
+# ゲームパッドのボタン、または Web UI のボタン ('web/w1'～'web/w5') を使用可能
+# None にするとゲームコントローラのデフォルトを使用
+# 注: クロスボタンは緊急停止用に予約済み
 #
-TOGGLE_RECORDING_BTN = "option" # button to toggle recording mode
-INC_PID_D_BTN = None            # button to change PID 'D' constant by PID_D_DELTA
-DEC_PID_D_BTN = None            # button to change PID 'D' constant by -PID_D_DELTA
-INC_PID_P_BTN = "R2"            # button to change PID 'P' constant by PID_P_DELTA
-DEC_PID_P_BTN = "L2"            # button to change PID 'P' constant by -PID_P_DELTA
+TOGGLE_RECORDING_BTN = "option" # 録画モードを切り替えるボタン
+INC_PID_D_BTN = None            # PID 'D' 値を PID_D_DELTA だけ変更するボタン
+DEC_PID_D_BTN = None            # PID 'D' 値を -PID_D_DELTA だけ変更するボタン
+INC_PID_P_BTN = "R2"            # PID 'P' 値を PID_P_DELTA だけ変更するボタン
+DEC_PID_P_BTN = "L2"            # PID 'P' 値を -PID_P_DELTA だけ変更するボタン
 
