@@ -1,3 +1,5 @@
+"""非推奨機能をマークするデコレータを提供するモジュール。"""
+
 import functools
 import inspect
 import warnings
@@ -6,30 +8,29 @@ string_types = (type(b''), type(u''))
 
 
 def deprecated(reason):
-    """
-    This is a decorator which can be used to mark functions
-    or classes as deprecated. It will result in a warning
-    being emitted when the function is used.
-    Taken from this fantastic answer by Laurent LaPorte:
-    https://stackoverflow.com/a/40301488/1733315
+    """関数やクラスを非推奨としてマークするデコレータ。
+
+    このデコレータを付与した対象を使用すると警告が表示される。
+    Laurent LaPorte 氏の素晴らしい回答
+    https://stackoverflow.com/a/40301488/1733315 を参考にしている。
     """
 
     if isinstance(reason, string_types):
 
-        # The @deprecated is used with a 'reason'.
+        # @deprecated が引数付きで使われた場合
         #
         # .. code-block:: python
         #
         #    @deprecated("please, use another function")
         #    def old_function(x, y):
-        #      pass
+        #        pass
 
         def decorator(func1):
 
             if inspect.isclass(func1):
-                fmt1 = "Call to deprecated class {name} ({reason})."
+                fmt1 = "非推奨のクラス {name} を呼び出しました ({reason})。"
             else:
-                fmt1 = "Call to deprecated function {name} ({reason})."
+                fmt1 = "非推奨の関数 {name} を呼び出しました ({reason})。"
 
             @functools.wraps(func1)
             def new_func1(*args, **kwargs):
@@ -48,20 +49,20 @@ def deprecated(reason):
 
     elif inspect.isclass(reason) or inspect.isfunction(reason):
 
-        # The @deprecated is used without any 'reason'.
+        # @deprecated が引数なしで使われた場合
         #
         # .. code-block:: python
         #
         #    @deprecated
         #    def old_function(x, y):
-        #      pass
+        #        pass
 
         func2 = reason
 
         if inspect.isclass(func2):
-            fmt2 = "Call to deprecated class {name}."
+            fmt2 = "非推奨のクラス {name} を呼び出しました。"
         else:
-            fmt2 = "Call to deprecated function {name}."
+            fmt2 = "非推奨の関数 {name} を呼び出しました。"
 
         @functools.wraps(func2)
         def new_func2(*args, **kwargs):

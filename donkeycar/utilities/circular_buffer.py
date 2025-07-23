@@ -1,12 +1,13 @@
+"""循環バッファ実装モジュール。"""
 
 class CircularBuffer:
-    """
-    Fixed capacity circular buffer that can be used as
-    a queue, stack or array
+    """固定容量の循環バッファ。
+
+    キュー、スタック、配列のいずれとしても利用可能。
     """
     def __init__(self, capacity:int, defaultValue=None) -> None:
         if capacity <= 0:
-            raise ValueError("capacity must be greater than zero")
+            raise ValueError("capacity は 0 より大きくなければなりません")
         self.defaultValue = defaultValue
         self.buffer:list = [None] * capacity
         self.capacity:int = capacity
@@ -14,45 +15,46 @@ class CircularBuffer:
         self.tailIndex:int = 0
 
     def head(self):
-        """
-        Non-destructive get of the entry at the head (index count-1)
-        return: if list is not empty, the head (most recently pushed/enqueued) entry.
-                if list is empty, the default value provided in the constructor                
+        """先頭要素を非破壊で取得する。
+
+        Returns:
+            list が空でなければ最新に追加された要素、空であればコンストラクタで
+            指定したデフォルト値。
         """
         if self.count > 0:
             return self.buffer[(self.tailIndex + self.count - 1) % self.capacity]
         return self.defaultValue
 
     def tail(self):
-        """
-        Non-destructive get of the entry at the tail (index 0)
-        return: if list is not empty, the tail (least recently pushed/enqueued) entry.
-                if list is empty, the default value provided in the constructor
+        """末尾要素を非破壊で取得する。
+
+        Returns:
+            list が空でなければ最も古い要素、空であればコンストラクタで指定した
+            デフォルト値。
         """
         if self.count > 0:
             return self.buffer[self.tailIndex]
         return self.defaultValue
 
     def enqueue(self, value):
-        """
-        Push a value onto the head of the buffer.  
-        If the buffer is full, then the value 
-        at the tail is dropped to make room.
+        """値を先頭に追加する。
+
+        バッファが満杯の場合は末尾の値を破棄して空きを作る。
         """
         if self.count < self.capacity:
             self.count += 1
         else:
-            # drop entry at the tail
+            # 末尾の要素を捨てる
             self.tailIndex = (self.tailIndex + 1) % self.capacity
 
-        # write value at head
+        # 先頭に値を書き込む
         self.buffer[(self.tailIndex + self.count - 1) % self.capacity] = value    
 
     def dequeue(self):
-        """
-        Remove value at tail of list and return it
-        return: if list not empty, value at tail
-                if list empty, the default value
+        """末尾の値を取り出して返す。
+
+        Returns:
+            list が空でなければ末尾の値、空であればデフォルト値。
         """
         theValue = self.tail()
         if self.count > 0:
@@ -61,21 +63,20 @@ class CircularBuffer:
         return theValue
 
     def push(self, value):
-        """
-        Push a value onto the head of the buffer.  
-        If the buffer is full, then a IndexError
-        is raised.
+        """値を先頭に追加する。
+
+        バッファが満杯の場合は ``IndexError`` を送出する。
         """
         if self.count >= self.capacity:
-            raise IndexError("Attempt to push to a full buffer")
+            raise IndexError("満杯のバッファへ push しようとしました")
 
         self.enqueue(value)
 
     def pop(self):
-        """
-        Remove value at head of list and return it
-        return: if list not empty, the value at head 
-                if list empty, the default value
+        """先頭の値を取り出して返す。
+
+        Returns:
+            list が空でなければ先頭の値、空であればデフォルト値。
         """
         theValue = self.head()
         if self.count > 0:
@@ -83,27 +84,29 @@ class CircularBuffer:
         return theValue
 
     def append(self, value):
-        """
-        append a value to the tail (index count-1) of the buffer.
-        If the buffer is at capacity, then this
-        will raise an IndexError.
+        """値を末尾（インデックス ``count-1``）に追加する。
+
+        バッファが満杯の場合は ``IndexError`` を送出する。
         """
         if self.count >= self.capacity:
-            raise IndexError("Attempt to append to a full buffer")
+            raise IndexError("満杯のバッファへ append しようとしました")
 
-        # make space a tail for the value
+        # 末尾に空きを作って値を入れる
         self.count += 1
         self.tailIndex = (self.tailIndex - 1) % self.capacity
         self.buffer[self.tailIndex] = value
 
 
     def get(self, i:int):
-        """
-        Get value at given index where
-        head is index 0 and tail is is index count-1;
-        i: index from 0 to count-1 (head is zero)
-        return: value at index
-                or the default value if index is out of range
+        """指定インデックスの値を取得する。
+
+        先頭を 0、末尾を ``count-1`` とする。
+
+        Args:
+            i: 取得するインデックス。
+
+        Returns:
+            指定インデックスの値。範囲外の場合はデフォルト値。
         """
         if (i >= 0) and (i < self.count):
             return self.buffer[(self.tailIndex + (self.count + i - 1)) % self.capacity]
@@ -111,33 +114,39 @@ class CircularBuffer:
         return self.defaultValue
 
     def set(self, i:int, value):
-        """
-        Set value at given index where
-        head is index 0 and tail is is index count-1;
+        """指定インデックスに値を設定する。
+
+        先頭を 0、末尾を ``count-1`` とする。
+
+        Args:
+            i: 設定するインデックス。
+            value: 設定する値。
+
+        Raises:
+            IndexError: インデックスが範囲外の場合。
         """
         if (i >= 0) and (i < self.count):
             self.buffer[(self.tailIndex + (self.count + i - 1)) % self.capacity] = value
             return
-        raise IndexError("buffer index is out of range")
+        raise IndexError("バッファのインデックスが範囲外です")
 
     def truncateTo(self, count):
-        """
-        Truncate the list to the given number of values.
-        If the given number is greater than or equal to
-        the current count(), then nothing is changed.
-        If the given number is less than the 
-        current count(), then elements are dropped
-        from the tail to resize to the given number.
-        The capactity of the queue is not changed.
+        """リストを指定数まで切り詰める。
 
-        So to drop all entries except the head:
-         truncateTo(1)        
+        与えられた数が ``count()`` 以上なら変更せず、
+        小さい場合は末尾から要素を削除して合わせる。キューの容量は変わらない。
 
-        count: the desired number of elements to
-               leave in the queue (maximum)
+        例:
+            先頭以外をすべて削除するには ``truncateTo(1)`` を呼び出す。
+
+        Args:
+            count: 残す要素数の上限。
+
+        Raises:
+            ValueError: ``count`` が範囲外の場合。
         """
         if count < 0 or count > self.capacity:
-            raise ValueError("count is out of range")
+            raise ValueError("count が範囲外です")
         self.count = count
         self.tailIndex = (self.tailIndex + count) % self.capacity
 

@@ -1,5 +1,8 @@
 # 変更履歴
 
+## ユーティリティ日本語化
+- `donkeycar/utilities` 配下のコメント、メッセージ、Docstring を日本語化
+
 ## 翻訳: gymモジュールのコメントとメッセージ
 - `donkeycar/gym/gym_real.py` と `donkeycar/gym/remote_controller.py` のコメントとユーザ向けメッセージを日本語化
 - Google スタイルのDocstringを追加
