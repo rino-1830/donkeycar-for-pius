@@ -3,7 +3,7 @@ import os
 from setuptools import find_packages, setup
 
 
-# include the non python files
+# Python 以外のファイルを含める
 def package_files(directory, strip_leading):
     paths = []
     for (path, directories, filenames) in os.walk(directory):
@@ -100,18 +100,18 @@ setup(name='donkeycar',
       },
       include_package_data=True,
       classifiers=[
-          # How mature is this project? Common values are
-          #   3 - Alpha
-          #   4 - Beta
-          #   5 - Production/Stable
+          # このプロジェクトの成熟度は？一般的な値は次の通り
+          #   3 - アルファ
+          #   4 - ベータ
+          #   5 - プロダクション/安定版
           'Development Status :: 4 - Beta',
-          # Indicate who your project is intended for
+          # このプロジェクトの対象者を示す
           'Intended Audience :: Developers',
           'Topic :: Scientific/Engineering :: Artificial Intelligence',
-          # Pick your license as you wish (should match "license" above)
+          # 希望するライセンスを選択（上記の"license"と一致させること）
           'License :: OSI Approved :: MIT License',
-          # Specify the Python versions you support here. In particular, ensure
-          # that you indicate whether you support Python 2, Python 3 or both.
+          # サポートする Python バージョンをここで指定。特に次の点を確認
+          # Python 2、Python 3、あるいはその両方をサポートするかを明記すること
           'Programming Language :: Python :: 3.6',
           'Programming Language :: Python :: 3.7',
       ],
