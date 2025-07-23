@@ -1,10 +1,6 @@
-### Install on raspberry pi
-The easiest way to get donkey running on a pi is with 
-a prebuilt disk image. To create your own disk
-image you can use the scripts in /pi.
+### Raspberry Piへのインストール
+DonkeyをPiで動かす最も簡単な方法は、あらかじめ構築されたディスクイメージを使用することです。自分でディスクイメージを作成したい場合は、/pi 以下のスクリプトを利用できます。
 
-
-### Install on other systems
-Create a conda environment using the env files
-
+### その他のシステムへのインストール
+envファイルを使ってconda環境を作成してください。
 
