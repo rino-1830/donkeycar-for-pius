@@ -1,29 +1,28 @@
+import logging
 import os
 import sys
-from pyfiglet import Figlet
-import logging
+
 from pkg_resources import get_distribution
+from pyfiglet import Figlet
 
-__version__ = get_distribution('donkeycar').version
+__version__ = get_distribution("donkeycar").version
 
-logging.basicConfig(level=os.environ.get('LOGLEVEL', 'INFO').upper())
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO").upper())
 
-f = Figlet(font='speed')
+f = Figlet(font="speed")
 
 
-print(f.renderText('Donkey Car'))
-print(f'using donkey v{__version__} ...')
+print(f.renderText("DonkeyCar"))
+print(f"donkey v{__version__} を使用しています...")
 
 if sys.version_info.major < 3 or sys.version_info.minor < 6:
-    msg = f'Donkey Requires Python 3.6 or greater. You are using {sys.version}'
+    msg = f"Donkeyは Python 3.6 以上が必要です。現在のバージョンは {sys.version} です"
     raise ValueError(msg)
 
-# The default recursion limits in CPython are too small.
+# CPython のデフォルトの再帰制限は小さすぎるため拡張する。
 sys.setrecursionlimit(10**5)
 
-from .vehicle import Vehicle
-from .memory import Memory
-from . import utils
-from . import config
-from . import contrib
+from . import config, contrib, utils
 from .config import load_config
+from .memory import Memory
+from .vehicle import Vehicle
