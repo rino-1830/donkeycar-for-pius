@@ -2,19 +2,30 @@ import math
 from donkeycar.utils import map_frange, sign
 
 class VelocityNormalize:
-    """
-    Normalize a velocity into to range 0..1.0
-    given the measured minimum and maximum speeds.
-    @param min_speed: speed below which car stalls
-    @param max_speed: car's top speed (may be a target, not a limit)
-    @param min_normal_speed: the normalized throttle corresponding to min_speed
-    """
-    def __init__(self, min_speed:float, max_speed:float, min_normal_speed:float=0.1) -> None:
+    """速度を0から1の範囲に正規化するクラス。"""
+
+    def __init__(self, min_speed: float, max_speed: float,
+                 min_normal_speed: float = 0.1) -> None:
+        """コンストラクタ。
+
+        Args:
+            min_speed: 車両が停止する速度よりも上の最小速度。
+            max_speed: 車両の最高速度（目標値の場合もある）。
+            min_normal_speed: ``min_speed`` に対応する正規化スロットル値。
+        """
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.min_normal_speed = min_normal_speed
 
-    def run(self, speed:float) -> float:
+    def run(self, speed: float) -> float:
+        """速度を正規化して返す。
+
+        Args:
+            speed: 実際の速度。負値は後退を表す。
+
+        Returns:
+            正規化された速度。
+        """
         s = sign(speed)
         speed = abs(speed)
         if speed < self.min_speed:
@@ -22,8 +33,8 @@ class VelocityNormalize:
         if speed >= self.max_speed:
             return s * 1.0
         return s * map_frange(
-            speed, 
-            self.min_speed, self.max_speed, 
+            speed,
+            self.min_speed, self.max_speed,
             self.min_normal_speed, 1.0)
 
     def shutdown(self):
@@ -31,15 +42,30 @@ class VelocityNormalize:
 
 
 class VelocityUnnormalize:
-    """
-    Map normalized speed (0 to 1) to actual speed
-    """
-    def __init__(self, min_speed:float, max_speed:float, min_normal_speed:float=0.1) -> None:
+    """正規化速度を実速度に変換するクラス。"""
+
+    def __init__(self, min_speed: float, max_speed: float,
+                 min_normal_speed: float = 0.1) -> None:
+        """コンストラクタ。
+
+        Args:
+            min_speed: 車両が停止する速度よりも上の最小速度。
+            max_speed: 車両の最高速度。
+            min_normal_speed: ``min_speed`` に対応する正規化スロットル値。
+        """
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.min_normal_speed = min_normal_speed
 
-    def run(self, speed:float) -> float:
+    def run(self, speed: float) -> float:
+        """正規化速度を実速度に変換して返す。
+
+        Args:
+            speed: 正規化された速度。負値は後退を表す。
+
+        Returns:
+            実速度。
+        """
         s = sign(speed)
         speed = abs(speed)
         if speed < self.min_normal_speed:
@@ -47,7 +73,7 @@ class VelocityUnnormalize:
         if speed >= 1.0:
             return s * 1.0
         return s * map_frange(
-            speed, 
+            speed,
             self.min_normal_speed, 1.0,
             self.min_speed, self.max_speed)
 
@@ -56,37 +82,37 @@ class VelocityUnnormalize:
 
 
 class StepSpeedController:
-    """
-    Simplistic constant step controller.
-    Just increases speed if we are too slow 
-    or decreases speed if we are too fast.
-    Includes feed-forward when reversing direction
-    or starting from stopped.
-    """
-    def __init__(self, min_speed:float, max_speed:float, throttle_step:float=1/255, min_throttle:float=0) -> None:
-        """
-        @param min_speed is speed below which vehicle stalls (so slowest stable working speed)
-        @param max_speed is speed at maximum throttle
-        @param throttle_steps is number of steps in working range of throttle (min_throttle to 1.0)
-        @param min_throttle is throttle that corresponds to min_speed; the throttle below which the vehicle stalls.
+    """単純なステップ制御で速度を調整するクラス。"""
+
+    def __init__(self, min_speed: float, max_speed: float,
+                 throttle_step: float = 1 / 255,
+                 min_throttle: float = 0) -> None:
+        """コンストラクタ。
+
+        Args:
+            min_speed: 車両が停止しない最小安定速度。
+            max_speed: 最大スロットル時の速度。
+            throttle_step: ``min_throttle`` から ``1.0`` までのステップ幅。
+            min_throttle: ``min_speed`` に対応するスロットル値。
         """
         self.min_speed = min_speed
         self.max_speed = max_speed
         self.min_throttle = min_throttle
         self.step_size = throttle_step
     
-    def run(self, throttle:float, speed:float, target_speed:float) -> float:
-        """
-        Given current throttle and speed and a target speed, 
-        calculate a new throttle to attain target speed
-        @param throttle is current throttle (-1 to 1)
-        @param speed is current speed where reverse speeds are negative
-        @param throttle_steps number of steps between min_throttle and max_throttle=1.0
-        @param min_throttle is throttle that corresponds to min_speed
-        max_throttle is assumed to be 1.0
+    def run(self, throttle: float, speed: float, target_speed: float) -> float:
+        """現在速度と目標速度からスロットルを更新する。
+
+        Args:
+            throttle: 現在のスロットル値（-1〜1）。
+            speed: 現在の速度。負値は後退を表す。
+            target_speed: 目標速度。
+
+        Returns:
+            更新後のスロットル値。
         """
         if speed is None or target_speed is None:
-            # no speed to control, just return throttle
+            # 制御する速度が無いのでそのまま返す
             return throttle
 
         target_direction = sign(target_speed)
@@ -95,33 +121,27 @@ class StepSpeedController:
         target_speed = abs(target_speed)
         speed = abs(speed)
 
-        # 
-        # treat speed below minimum as zero
-        #
+        # 最小速度未満はゼロとみなす
         if target_speed < self.min_speed:
             return 0
 
-        #
-        # when changing direction or starting from stopped,
-        # calculate a feed-forward throttle estimate 
-        # so we jump into a working range quickly
-        #
+        # 方向転換や停止状態からの発進時には
+        # フィードフォワードでスロットルを推定し
+        # すぐに動作範囲へ入るようにする
         if direction != target_direction:
-            # if we are going too fast to just reverse, then slow down first
+            # 速度が高すぎてすぐに反転できない場合は減速する
             if speed > self.min_speed:
                 return 0
             
-            # calculate first estimate of throttle to achieve target speed
+            # 目標速度に達するための初期スロットルを算出
             return target_direction * map_frange(target_speed, self.min_speed, self.max_speed, self.min_throttle, 1.0)
 
-        # 
-        # modify throttle
-        #
+        # スロットルを調整
         if speed > target_speed:
-            # too fast, slow down
+            # 速すぎるので減速
             throttle -= self.step_size
         elif speed > target_speed:
-            # too slow, speed up
+            # 遅すぎるので加速
             throttle += self.step_size
 
         return target_direction * throttle

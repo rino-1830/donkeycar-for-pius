@@ -4,9 +4,7 @@ import zmq
 import time
 
 class ZMQValuePub(object):
-    '''
-    Use Zero Message Queue (zmq) to publish values
-    '''
+    """Zero Message Queue(zmq) を使用して値を配信します。"""
     def __init__(self, name, port = 5556, hwm=10):
         context = zmq.Context()
         self.name = name
@@ -21,15 +19,13 @@ class ZMQValuePub(object):
         self.socket.send(z)
 
     def shutdown(self):
-        print("shutting down zmq")
-        #self.socket.close()
+        print("zmq をシャットダウンします")
+        # self.socket.close()
         context = zmq.Context()
         context.destroy()
 
 class ZMQValueSub(object):
-    '''
-    Use Zero Message Queue (zmq) to subscribe to value messages from a remote publisher
-    '''
+    """Zero Message Queue(zmq) を用いてリモートのパブリッシャーから値を購読します。"""
     def __init__(self, name, ip, port = 5556, hwm=10, return_last=True):
         context = zmq.Context()
         self.socket = context.socket(zmq.SUB)
@@ -41,10 +37,12 @@ class ZMQValueSub(object):
         self.last = None
 
     def run(self):
-        '''
-        poll socket for input. returns None when nothing was recieved
-        otherwize returns packet data
-        '''
+        """ソケットをポーリングして入力を取得します。
+
+        Returns:
+            Any | None: データを受信した場合はパケット内容、受信がない場合は
+            ``None``。
+        """
         try:
             z = self.socket.recv(flags=zmq.NOBLOCK)
         except zmq.Again as e:
@@ -52,7 +50,7 @@ class ZMQValueSub(object):
                 return self.last
             return None
 
-        #print("got", len(z), "bytes")
+        #print("受信", len(z), "バイト")
         p = zlib.decompress(z)
         obj = pickle.loads(p)
 
@@ -70,9 +68,7 @@ class ZMQValueSub(object):
         context.destroy()
 
 class UDPValuePub(object):
-    '''
-    Use udp to broadcast values on local network
-    '''
+    """UDP を用いてローカルネットワークに値をブロードキャストします。"""
     def __init__(self, name, port = 37021):
         self.name = name
         self.port = port
@@ -85,21 +81,19 @@ class UDPValuePub(object):
         packet = { "name": self.name, "val" : values }
         p = pickle.dumps(packet)
         z = zlib.compress(p)
-        #print("broadcast", len(z), "bytes to port", self.port)
+        #print("ブロードキャスト", len(z), "バイトをポート", self.port)
         self.sock.sendto(z, ('<broadcast>', self.port))
 
     def shutdown(self):
         self.sock.close()
 
 class UDPValueSub(object):
-    '''
-    Use UDP to listen for broadcase packets
-    '''
+    """UDP を使ってブロードキャストされたパケットを受信します。"""
     def __init__(self, name, port = 37021, def_value=None):
-        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDPソケット
         self.client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.client.bind(("", port))
-        print("listening for UDP broadcasts on port", port)
+        print("ポート", port, "で UDP ブロードキャストを待ち受けます")
         self.name = name
         self.last = def_value
         self.running = True
@@ -117,7 +111,7 @@ class UDPValueSub(object):
 
     def poll(self):
         data, addr = self.client.recvfrom(1024 * 65)
-        #print("got", len(data), "bytes")
+        #print("受信", len(data), "バイト")
         if len(data) > 0:
             p = zlib.decompress(data)
             obj = pickle.loads(p)
@@ -145,17 +139,17 @@ class TCPServeValue(object):
         self.sock.setblocking(False)
         self.sock.bind(("0.0.0.0", port))
         self.sock.listen(3)
-        print("serving value:", name, "on port:", port)
+        print("値", name, "をポート", port, "で提供します")
         self.clients = []
 
     def send(self, sock, msg):
         try:
             sock.sendall(msg)
         except ConnectionResetError:
-            print("client dropped connection")
+            print("クライアントとの接続が切断されました")
             self.clients.remove(sock)
 
-        #print("sent", len(msg), "bytes")
+        #print("送信", len(msg), "バイト")
 
     def run(self, values):
         timeout = 0.05
@@ -174,16 +168,16 @@ class TCPServeValue(object):
                 try:
                     self.send(client, z)
                 except BrokenPipeError or ConnectionResetError:
-                    print("client dropped connection")
+                    print("クライアントとの接続が切断されました")
                     self.clients.remove(client)
         
         if self.sock in ready_to_read:
             client, addr = self.sock.accept()
-            print("got connection from", addr)
+            print("接続元", addr, "からの要求を受けました")
             self.clients.append(client)
 
         if len(in_error) > 0:
-            print("clients gone")
+            print("クライアントが切断されました")
             for sock in in_error:
                 self.clients.remove(sock)
 
@@ -205,16 +199,16 @@ class TCPClientValue(object):
         self.lastread = time.time()
 
     def connect(self):
-        print("attempting connect to", self.addr)
+        print("", self.addr, "への接続を試みます")
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect(self.addr)
         except ConnectionRefusedError:
-            print('server down')
+            print('サーバーが停止しています')
             time.sleep(3.0)
             self.sock = None
             return False
-        print("connected!")
+        print("接続しました")
         self.sock.setblocking(False)
         return True
 
@@ -260,7 +254,7 @@ class TCPClientValue(object):
             if not self.connect():
                 return None
         elif time_since_last_read > 5.0: 
-            print("error: no data from server. may have died")
+            print("エラー: サーバーからデータがありません。停止した可能性があります")
             self.reset()
             return None
 
@@ -272,20 +266,20 @@ class TCPClientValue(object):
                   self.timeout)
 
         if len(in_error) > 0:
-            print("error: server may have died")
+            print("エラー: サーバーが停止した可能性があります")
             self.reset()
             return None
 
         if len(ready_to_read) == 1:
             try:
                 data = self.read(self.sock)
-                #print("got", len(data), "bytes")
+                #print("受信", len(data), "バイト")
                 self.lastread = time.time()
                 p = zlib.decompress(data)
                 obj = pickle.loads(p)
             except Exception as e:
                 print(e)
-                print("error: server may have died")
+                print("エラー: サーバーが停止した可能性があります")
                 self.reset()
                 return None
 
@@ -294,7 +288,7 @@ class TCPClientValue(object):
                 return obj['val']
 
         if len(in_error) > 0:
-            print("connection closed")
+            print("接続が閉じられました")
             self.reset()
 
         return None
@@ -303,20 +297,20 @@ class TCPClientValue(object):
         self.sock.close()
 
 class MQTTValuePub(object):
-    '''
-    Use MQTT to send values on network
-    pip install paho-mqtt
-    '''
+    """MQTT を利用してネットワーク上に値を送信します。
+
+    `paho-mqtt` をインストールしてください。
+    """
     def __init__(self, name, broker="iot.eclipse.org"):
         from paho.mqtt.client import Client
 
         self.name = name
         self.message = None
         self.client = Client()
-        print("connecting to broker", broker)
+        print("ブローカー", broker, "に接続します")
         self.client.connect(broker)
         self.client.loop_start()
-        print("connected.")
+        print("接続しました")
 
     def run(self, values):
         packet = { "name": self.name, "val" : values }
@@ -330,10 +324,10 @@ class MQTTValuePub(object):
 
 
 class MQTTValueSub(object):
-    '''
-    Use MQTT to recv values on network
-    pip install paho-mqtt
-    '''
+    """MQTT を利用してネットワーク上の値を受信します。
+
+    `paho-mqtt` をインストールしてください。
+    """
     def __init__(self, name, broker="iot.eclipse.org", def_value=None):
         from paho.mqtt.client import Client
 
@@ -341,12 +335,12 @@ class MQTTValueSub(object):
         self.data = None
         self.client = Client(clean_session=True)
         self.client.on_message = self.on_message
-        print("(clean_session) connecting to broker", broker)
+        print("(clean_session) ブローカー", broker, "に接続します")
         self.client.connect(broker)
         self.client.loop_start()
         self.client.subscribe(self.name)
         self.def_value = def_value
-        print("connected.")
+        print("接続しました")
 
     def on_message(self, client, userdata, message):
         self.data = message.payload
@@ -360,7 +354,7 @@ class MQTTValueSub(object):
 
         if self.name == obj['name']:
             self.last = obj['val']
-            #print("steering, throttle", obj['val'])
+            #print("ステアリングとスロットル", obj['val'])
             return obj['val']
             
         return self.def_value
@@ -373,7 +367,7 @@ class MQTTValueSub(object):
 def test_pub_sub(ip):
     
     if ip is None:
-        print("publishing test..")
+        print("パブリッシュテスト...")
         p = ZMQValuePub('test')
         import math
         theta = 0.0
@@ -386,18 +380,18 @@ def test_pub_sub(ip):
             time.sleep(0.1)
 
     else:
-        print("subscribing test..", ip)
+        print("サブスクライブテスト...", ip)
         s = ZMQValueSub('test', ip=ip)
 
         while True:
             res = s.run()
-            print("got:", res)
+            print("受信:", res)
             time.sleep(1)
 
 def test_udp_broadcast(ip):
     
     if ip is None:
-        print("udp broadcast test..")
+        print("UDP ブロードキャストテスト...")
         p = UDPValuePub('camera')
         from donkeycar.parts.camera import PiCamera
         from donkeycar.parts.image import ImgArrToJpg
@@ -408,12 +402,12 @@ def test_udp_broadcast(ip):
         while True:
             cam_img = cam.run()
             jpg = img_conv.run(cam_img)
-            print("sending", len(jpg), "bytes")
+            print("送信", len(jpg), "バイト")
             p.run(jpg)
             time.sleep(0.5)
 
     else:
-        print("udp listen test..", ip)
+        print("UDP 受信テスト...", ip)
         s = UDPValueSub('camera')
 
         while True:
@@ -442,7 +436,7 @@ def test_tcp_client_server(ip):
 def test_mqtt_pub_sub(ip):
     
     if ip is None:
-        print("publishing test..")
+        print("パブリッシュテスト...")
         p = MQTTValuePub('donkey/camera')
         from donkeycar.parts.camera import PiCamera
         from donkeycar.parts.image import ImgArrToJpg
@@ -455,24 +449,24 @@ def test_mqtt_pub_sub(ip):
             time.sleep(0.1)
 
     else:
-        print("subscribing test..")
+        print("サブスクライブテスト...")
         s = MQTTValueSub('donkey/camera')
 
         while True:
             res = s.run()
-            print("got:", res)
+            print("受信:", res)
             time.sleep(0.1)
 
 if __name__ == "__main__":
     import time
     import sys
 
-    #usage:
-    #  for subscriber test, pass ip arg like:
-    # python network.py ip=localhost
+    # 使用方法:
+    #  サブスクライバーテストを行う場合は次のように実行します:
+    #  python network.py ip=localhost
     #
-    #  for publisher test, pass no args
-    # python network.py
+    #  パブリッシャーテストの場合は引数なしで実行します:
+    #  python network.py
 
     ip = None
 

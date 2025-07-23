@@ -1,7 +1,6 @@
-"""
-Deprecated in favor on donkeycar.parts.Tachometer and donkeycar.parts.Odometer.
+"""エンコーダーとオドメトリ部品。
 
-Encoders and odometry
+donkeycar.parts.Tachometer と donkeycar.parts.Odometer を使用するため本モジュールは非推奨。
 """
 
 from datetime import datetime
@@ -10,28 +9,41 @@ import re
 import time
 
 
-# The Arduino class is for a quadrature wheel or motor encoder that is being read by an offboard microcontroller
-# such as an Arduino or Teensy that is feeding serial data to the RaspberryPy or Nano via USB serial. 
-# The microcontroller should be flashed with this sketch (use the Arduino IDE to do that): https://github.com/zlite/donkeycar/tree/master/donkeycar/parts/encoder/encoder
-# Make sure you check the sketch using the "test_encoder.py code in the Donkeycar tests folder to make sure you've got your 
-# encoder plugged into the right pins, or edit it to reflect the pins you are using.
+# Arduino クラスは、外部マイコンで読み取られるクアドラチャエンコーダーやモーターエンコーダー用です。
+# Arduino や Teensy などから USB シリアル経由で RaspberryPi または Nano にシリアルデータを送信します。
+# マイコンはこのスケッチで書き込んでください（Arduino IDE を使用）：https://github.com/zlite/donkeycar/tree/master/donkeycar/parts/encoder/encoder
+# Donkeycar の tests フォルダーにある `test_encoder.py` を使って、正しいピンに接続されているか確認するか、使用するピンに合わせて編集してください。
 
-# You will need to calibrate the mm_per_tick line below to reflect your own car. Just measure out a meter and roll your car
-# along it. Change the number below until it the distance reads out almost exactly 1.0 
+# 以下の `mm_per_tick` は車両ごとに調整が必要です。1 メートルを測って車を転がし、1.0 になるよう調整してください。
+# このクラスは 10Hz でオドメーターをサンプリングし、直近 10 回の読み取りの移動平均から速度を計算します。
 
-# This samples the odometer at 10HZ and does a moving average over the past ten readings to derive a velocity
-
-@deprecated("Deprecated in favor donkeycar.parts.tachometer.Tachometer(SerialEncoder)")
+@deprecated("donkeycar.parts.tachometer.Tachometer(SerialEncoder) を推奨")
 class ArduinoEncoder(object):
+    """Arduinoから送られるエンコーダー値を読み取るクラス。
+
+    Attributes:
+        ser (serial.Serial): エンコーダーが接続されたシリアルポート。
+        ticks (int): 現在のティック数。
+        lasttick (int): 最後に受信したティック数。
+        debug (bool): デバッグ出力を行うかどうか。
+        on (bool): スレッド実行フラグ。
+        mm_per_tick (float): ティック当たりの移動距離[mm]。
+    """
     def __init__(self, mm_per_tick=0.0000599, debug=False):
+        """インスタンスを初期化する。
+
+        Args:
+            mm_per_tick (float, optional): ティック当たりの移動距離[mm]。デフォルトは ``0.0000599``。
+            debug (bool, optional): デバッグ出力を行うかどうか。デフォルトは ``False``。
+        """
         import serial
         import serial.tools.list_ports
         from donkeycar.parts.pigpio_enc import OdomDist
         for item in serial.tools.list_ports.comports():
-            print(item)  # list all the serial ports
+            print(item)  # 接続されているシリアルポートを一覧表示する
         self.ser = serial.Serial('/dev/ttyACM0', 115200, 8, 'N', 1, timeout=0.1)
-        # initialize the odometer values
-        self.ser.write(str.encode('r'))  # restart the encoder to zero
+        # オドメーターの値を初期化する
+        self.ser.write(str.encode('r'))  # エンコーダーをゼロにリスタート
         self.ticks = 0
         self.lasttick = 0
         self.debug = debug
@@ -39,14 +51,16 @@ class ArduinoEncoder(object):
         self.mm_per_tick = mm_per_tick
 
     def update(self):
+        """シリアルポートからデータを取得し速度と距離を計算する。"""
+
         while self.on:
             input = ''
-            while (self.ser.in_waiting > 0):   # read the serial port and see if there's any data there
+            while (self.ser.in_waiting > 0):   # シリアルポートを読み取り、データがあるか確認する
                 buffer = self.ser.readline()
                 input = buffer.decode('ascii')
-            self.ser.write(str.encode('p'))  # queue up another reading by sending the "p" character to the Arduino
+            self.ser.write(str.encode('p'))  # 'p' 文字を送信して次の読み取りをリクエストする
             if input != '':
-                temp = input.strip()  # remove any whitespace
+                temp = input.strip()  # 空白を取り除く
                 if (temp.isnumeric()):
                     self.ticks = int(temp)
                     self.lasttick = self.ticks
@@ -54,20 +68,33 @@ class ArduinoEncoder(object):
             self.speed, self.distance = self.OdomDist(self.ticks, self.mm_per_tick)
 
     def run_threaded(self):
-        self.speed 
-        return self.speed 
+        """スレッドモードで速度を返す。"""
+
+        self.speed
+        return self.speed
 
 
     def shutdown(self):
-        # indicate that the thread should be stopped
-        print('stopping Arduino encoder')
+        """スレッドを停止してリソースを解放する。"""
+
+        print('Arduinoエンコーダーを停止しています')
         self.on = False
         time.sleep(.5)
 
 
-@deprecated("Deprecated as unused")
+@deprecated("未使用のため非推奨")
 class AStarSpeed:
+    """Pololu A-Starから速度と加速度を読み取るクラス。
+
+    Attributes:
+        speed (float): 現在の速度[m/s]。
+        linaccel (dict | None): 加速度情報。
+        sensor (TeensyRCin): データ取得に用いるセンサー。
+        on (bool): スレッド実行フラグ。
+    """
     def __init__(self):
+        """インスタンスを初期化する。"""
+
         from donkeycar.parts.teensy import TeensyRCin
         self.speed = 0
         self.linaccel = None
@@ -75,6 +102,8 @@ class AStarSpeed:
         self.on = True
 
     def update(self):
+        """センサーから受信したデータを解析し速度を更新する。"""
+
         encoder_pattern = re.compile('^E ([-0-9]+)( ([-0-9]+))?( ([-0-9]+))?$')
         linaccel_pattern = re.compile('^L ([-.0-9]+) ([-.0-9]+) ([-.0-9]+) ([-0-9]+)$')
 
@@ -87,17 +116,17 @@ class AStarSpeed:
 
                 if m:
                     value = int(m.group(1))
-                    # rospy.loginfo("%s: Receiver E got %d" % (self.node_name, value))
-                    # Speed
-                    # 40 ticks/wheel rotation,
-                    # circumfence 0.377m
-                    # every 0.1 seconds
+                    # rospy.loginfo("%s: Receiver E got %d" % (self.node_name, value))  # デバッグ用ログ
+                    # 速度
+                    # 1回転あたり40ティック
+                    # 外周0.377m
+                    # 0.1秒ごと
                     if len(m.group(3)) > 0:
                         period = 0.001 * int(m.group(3))
                     else:
                         period = 0.1
 
-                    self.speed = 0.377 * (float(value) / 40) / period   # now in m/s
+                    self.speed = 0.377 * (float(value) / 40) / period   # 単位はm/s
                 else:
                     m = linaccel_pattern.match(l.decode('utf-8'))
 
@@ -105,7 +134,7 @@ class AStarSpeed:
                         la = { 'x': float(m.group(1)), 'y': float(m.group(2)), 'z': float(m.group(3)) }
 
                         self.linaccel = la
-                        print("mw linaccel= " + str(self.linaccel))
+                        print("mw 加速度= " + str(self.linaccel))
 
                 l = self.sensor.astar_readline()
 
@@ -115,18 +144,38 @@ class AStarSpeed:
                 time.sleep(s)
 
     def run_threaded(self):
-        return self.speed # , self.linaccel
+        """現在の速度を返す。"""
+
+        return self.speed # , self.linaccel（未使用）
 
     def shutdown(self):
-        # indicate that the thread should be stopped
+        """スレッドを停止してリソースを解放する。"""
+
         self.on = False
-        print('stopping AStarSpeed')
+        print('AStarSpeed を停止しています')
         time.sleep(.5)
 
 
-@deprecated("Deprecated in favor of donkeycar.parts.tachometer.Tachometer(GpioEncoder)")
+@deprecated("donkeycar.parts.tachometer.Tachometer(GpioEncoder) を推奨")
 class RotaryEncoder():
+    """GPIO入力を利用したロータリーエンコーダー計測クラス。
+
+    Attributes:
+        pi (pigpio.pi): pigpio のインスタンス。
+        pin (int): エンコーダー信号を受け取るGPIOピン番号。
+        m_per_tick (float): ティックあたりの移動距離[m]。
+        poll_delay (float): ループの待機時間[s]。
+        meters (float): 走行距離[m]。
+        last_time (float): 前回計測時刻。
+        meters_per_second (float): 現在の速度[m/s]。
+        counter (int): ティックカウンター。
+        on (bool): スレッド実行フラグ。
+        debug (bool): デバッグ出力を行うかどうか。
+        top_speed (float): 最高速度[m/s]。
+    """
     def __init__(self, mm_per_tick=0.306096, pin=13, poll_delay=0.0166, debug=False):
+        """インスタンスを初期化する。"""
+
         import pigpio
         self.pi = pigpio.pi()
         self.pin = pin
@@ -135,7 +184,7 @@ class RotaryEncoder():
         self.cb = self.pi.callback(self.pin, pigpio.FALLING_EDGE, self._cb)
 
 
-        # initialize the odometer values
+        # オドメーターの値を初期化する
         self.m_per_tick = mm_per_tick / 1000.0
         self.poll_delay = poll_delay
         self.meters = 0
@@ -148,53 +197,59 @@ class RotaryEncoder():
         self.prev_dist = 0.
 
     def _cb(self, pin, level, tick):
+        """割り込みコールバックでティックを増加させる。"""
+
         self.counter += 1
 
     def update(self):
-        # keep looping infinitely until the thread is stopped
+        """エンコーダー値を読み取り速度と距離を計算する。"""
+
         while(self.on):
                 
-            #save the ticks and reset the counter
+            # ティックを保存してカウンターをリセットする
             ticks = self.counter
             self.counter = 0
             
-            #save off the last time interval and reset the timer
+            # 最後の時間間隔を保存してタイマーをリセットする
             start_time = self.last_time
             end_time = time.time()
             self.last_time = end_time
             
-            #calculate elapsed time and distance traveled
+            # 経過時間と移動距離を計算する
             seconds = end_time - start_time
             distance = ticks * self.m_per_tick
             velocity = distance / seconds
             
-            #update the odometer values
+            # オドメーターの値を更新する
             self.meters += distance
             self.meters_per_second = velocity
             if(self.meters_per_second > self.top_speed):
                 self.top_speed = self.meters_per_second
 
-            #console output for debugging
+            # デバッグ用のコンソール出力
             if(self.debug):
-                print('seconds:', seconds)
-                print('distance:', distance)
-                print('velocity:', velocity)
+                print('秒数:', seconds)
+                print('距離:', distance)
+                print('速度:', velocity)
 
-                print('distance (m):', round(self.meters, 4))
-                print('velocity (m/s):', self.meters_per_second)
+                print('距離(m):', round(self.meters, 4))
+                print('速度(m/s):', self.meters_per_second)
 
             time.sleep(self.poll_delay)
 
     def run_threaded(self, throttle):
+        """スレッドモードで速度を返す。"""
+
         self.prev_dist = self.meters
         return self.meters_per_second
 
     def shutdown(self):
-        # indicate that the thread should be stopped
+        """スレッドを停止し pigpio を終了する。"""
+
         self.on = False
-        print('Stopping Rotary Encoder')
-        print("\tDistance Travelled: {} meters".format(round(self.meters, 4)))
-        print("\tTop Speed: {} meters/second".format(round(self.top_speed, 4)))
+        print('ロータリーエンコーダーを停止しています')
+        print("\t走行距離: {} メートル".format(round(self.meters, 4)))
+        print("\t最高速度: {} メートル/秒".format(round(self.top_speed, 4)))
         if self.cb != None:
             self.cb.cancel()
             self.cb = None

@@ -1,3 +1,5 @@
+"""OpenCV を用いた画像処理パーツ群."""
+
 import time
 import cv2
 import numpy as np
@@ -9,6 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 def image_shape(image):
+    """画像の形状を返す。
+
+    2 次元配列の場合は高さ、幅、1 を返す。
+
+    Args:
+        image (numpy.ndarray): 入力画像。
+
+    Returns:
+        tuple: ``(height, width, channels)`` 形式のタプル。
+    """
+
     if image is None:
         return None
     if 2 == len(image.shape):
@@ -18,6 +31,7 @@ def image_shape(image):
 
 
 class ImgGreyscale:
+    """RGB画像をグレースケールに変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -27,7 +41,7 @@ class ImgGreyscale:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_RGB2GRAY)
             return img_arr
         except:
-            logger.error("Unable to convert RGB image to greyscale")
+            logger.error("RGB画像をグレースケールへ変換できません")
             return None
 
     def shutdown(self):
@@ -35,6 +49,7 @@ class ImgGreyscale:
 
 
 class ImgGRAY2RGB:
+    """グレースケール画像を RGB に変換するパーツ."""
     def run(self, img_arr):
         if img_arr is None:
             return None
@@ -42,7 +57,7 @@ class ImgGRAY2RGB:
         try:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_GRAY2RGB)
         except:
-            logger.error(F"Unable to convert greyscale image of shape {img_arr.shape} to RGB")
+            logger.error(F"グレースケール画像({img_arr.shape})をRGBへ変換できません")
             return None
 
     def shutdown(self):
@@ -50,6 +65,7 @@ class ImgGRAY2RGB:
 
 
 class ImgGRAY2BGR:
+    """グレースケール画像を BGR に変換するパーツ."""
     def run(self, img_arr):
         if img_arr is None:
             return None
@@ -57,7 +73,7 @@ class ImgGRAY2BGR:
         try:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_GRAY2BGR)
         except:
-            logger.error(F"Unable to convert greyscale image of shape {img_arr.shape} to RGB")
+            logger.error(F"グレースケール画像({img_arr.shape})をRGBへ変換できません")
             return None
 
     def shutdown(self):
@@ -65,10 +81,11 @@ class ImgGRAY2BGR:
 
 
 class ImgRGB2GRAY(ImgGreyscale):
-    pass
+    """RGB画像をグレースケールに変換するエイリアス."""
 
 
 class ImgBGR2GRAY:
+    """BGR画像をグレースケールに変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -78,7 +95,7 @@ class ImgBGR2GRAY:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_BGR2GRAY)
             return img_arr
         except:
-            logger.error("Unable to convert BGR image to greyscale")
+            logger.error("BGR画像をグレースケールへ変換できません")
             return None
 
     def shutdown(self):
@@ -86,6 +103,7 @@ class ImgBGR2GRAY:
 
 
 class ImgHSV2GRAY:
+    """HSV画像をグレースケールに変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -95,7 +113,7 @@ class ImgHSV2GRAY:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_HSV2GRAY)
             return img_arr
         except:
-            logger.error("Unable to convert HSV image to greyscale")
+            logger.error("HSV画像をグレースケールへ変換できません")
             return None
 
     def shutdown(self):
@@ -103,6 +121,7 @@ class ImgHSV2GRAY:
 
 
 class ImgWriter:
+    """画像をファイルへ書き出すパーツ."""
 
     def __init__(self, filename):
         self.filename = filename
@@ -115,6 +134,7 @@ class ImgWriter:
 
 
 class ImgBGR2RGB:
+    """BGR画像を RGB に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -124,7 +144,7 @@ class ImgBGR2RGB:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_BGR2RGB)
             return img_arr
         except:
-            logger.error("Unable to convert BGR image to RGB")
+            logger.error("BGR画像をRGBへ変換できません")
             return None
 
     def shutdown(self):
@@ -132,6 +152,7 @@ class ImgBGR2RGB:
 
 
 class ImgRGB2BGR:
+    """RGB画像を BGR に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -141,7 +162,7 @@ class ImgRGB2BGR:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_RGB2BGR)
             return img_arr
         except:
-            logger.error("Unable to convert RGB image to BRG")
+            logger.error("RGB画像をBGRへ変換できません")
             return None
 
     def shutdown(self):
@@ -149,6 +170,7 @@ class ImgRGB2BGR:
 
 
 class ImgHSV2RGB:
+    """HSV画像を RGB に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -158,7 +180,7 @@ class ImgHSV2RGB:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_HSV2RGB)
             return img_arr
         except:
-            logger.error("Unable to convert HSV image to RGB")
+            logger.error("HSV画像をRGBへ変換できません")
             return None
 
     def shutdown(self):
@@ -166,6 +188,7 @@ class ImgHSV2RGB:
 
 
 class ImgRGB2HSV:
+    """RGB画像を HSV に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -175,7 +198,7 @@ class ImgRGB2HSV:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_RGB2HSV)
             return img_arr
         except:
-            logger.error("Unable to convert RGB image to HSV")
+            logger.error("RGB画像をHSVへ変換できません")
             return None
 
     def shutdown(self):
@@ -183,6 +206,7 @@ class ImgRGB2HSV:
 
 
 class ImgHSV2BGR:
+    """HSV画像を BGR に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -192,7 +216,7 @@ class ImgHSV2BGR:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_HSV2BGR)
             return img_arr
         except:
-            logger.error("Unable to convert HSV image to BGR")
+            logger.error("HSV画像をBGRへ変換できません")
             return None
 
     def shutdown(self):
@@ -200,6 +224,7 @@ class ImgHSV2BGR:
 
 
 class ImgBGR2HSV:
+    """BGR画像を HSV に変換するパーツ."""
 
     def run(self, img_arr):
         if img_arr is None:
@@ -209,7 +234,7 @@ class ImgBGR2HSV:
             img_arr = cv2.cvtColor(img_arr, cv2.COLOR_BGR2HSV)
             return img_arr
         except:
-            logger.error("Unable to convert BGR image to HSV")
+            logger.error("BGR画像をHSVへ変換できません")
             return None
 
     def shutdown(self):
@@ -217,6 +242,7 @@ class ImgBGR2HSV:
 
 
 class ImageScale:
+    """画像を指定倍率で拡大・縮小するパーツ."""
 
     def __init__(self, scale, scale_height=None):
         if scale is None or scale <= 0:
@@ -233,7 +259,7 @@ class ImageScale:
         try:
             return cv2.resize(img_arr, (0,0), fx=self.scale, fy=self.scale_height)
         except:
-            logger.error("Unable to scale image")
+            logger.error("画像のスケーリングに失敗しました")
             return None
 
     def shutdown(self):
@@ -241,6 +267,7 @@ class ImageScale:
 
 
 class ImageResize:
+    """画像を指定された幅と高さにリサイズするパーツ."""
     def __init__(self, width:int, height:int) -> None:
         if width is None or width <= 0:
             raise ValueError("ImageResize: width must be > 0")
@@ -256,7 +283,7 @@ class ImageResize:
         try:
             return cv2.resize(img_arr, (self.width, self.height))
         except:
-            logger.error("Unable to resize image")
+            logger.error("画像のリサイズに失敗しました")
             return None
 
     def shutdown(self):
@@ -264,10 +291,10 @@ class ImageResize:
 
 
 class ImageRotateBound:
-    '''
-    credit:
-    https://www.pyimagesearch.com/2017/01/02/rotate-images-correctly-with-opencv-and-python/
-    '''
+    """画像を回転させるパーツ.
+
+    参考: https://www.pyimagesearch.com/2017/01/02/rotate-images-correctly-with-opencv-and-python/
+    """
 
     def __init__(self, rot_deg):
         self.rot_deg = rot_deg
@@ -276,27 +303,25 @@ class ImageRotateBound:
         if image is None:
             return None
 
-        # grab the dimensions of the image and then determine the
-        # center
+        # 画像のサイズを取得して中心座標を計算する
         (h, w) = image.shape[:2]
         (cX, cY) = (w // 2, h // 2)
     
-        # grab the rotation matrix (applying the negative of the
-        # angle to rotate clockwise), then grab the sine and cosine
-        # (i.e., the rotation components of the matrix)
+        # 回転行列を取得し（時計回りに回転させるため角度を負にする）、
+        # 行列からサイン・コサイン成分を取り出す
         M = cv2.getRotationMatrix2D((cX, cY), -self.rot_deg, 1.0)
         cos = np.abs(M[0, 0])
         sin = np.abs(M[0, 1])
     
-        # compute the new bounding dimensions of the image
+        # 回転後の画像サイズを計算する
         nW = int((h * sin) + (w * cos))
         nH = int((h * cos) + (w * sin))
     
-        # adjust the rotation matrix to take into account translation
+        # 移動量を考慮して回転行列を調整する
         M[0, 2] += (nW / 2) - cX
         M[1, 2] += (nH / 2) - cY
     
-        # perform the actual rotation and return the image
+        # 回転処理を行い画像を返す
         return cv2.warpAffine(image, M, (nW, nH))
 
     def shutdown(self):
@@ -304,11 +329,12 @@ class ImageRotateBound:
 
 
 class ImgCanny:
+    """Cannyエッジ検出を行うパーツ."""
 
     def __init__(self, low_threshold=60, high_threshold=110, aperture_size=3, l2gradient=False):
         self.low_threshold = low_threshold
         self.high_threshold = high_threshold
-        self.aperture_size = aperture_size   # 3, 5 or 7
+        self.aperture_size = aperture_size   # 3、5、7 のいずれか
         self.l2gradient = l2gradient
 
     def run(self, img_arr):
@@ -322,7 +348,7 @@ class ImgCanny:
                              apertureSize=self.aperture_size,
                              L2gradient=self.l2gradient)
         except:
-            logger.error("Unable to apply canny edge detection to image.")
+            logger.error("Cannyエッジ検出の適用に失敗しました")
             return None
 
     def shutdown(self):
@@ -330,6 +356,7 @@ class ImgCanny:
 
 
 class ImgGaussianBlur:
+    """Gaussian ブラーを適用するパーツ."""
 
     def __init__(self, kernel_size=5, kernel_y=None):
         self.kernel_size = (kernel_size, kernel_y if kernel_y is not None else kernel_size)
@@ -343,7 +370,7 @@ class ImgGaussianBlur:
                                     self.kernel_size, 
                                     0)
         except:
-            logger.error("Unable to apply gaussian blur to image.")
+            logger.error("ガウシアンブラーの適用に失敗しました")
             return None
 
     def shutdown(self):
@@ -351,6 +378,7 @@ class ImgGaussianBlur:
 
 
 class ImgSimpleBlur:
+    """単純な平均化ブラーを適用するパーツ."""
 
     def __init__(self, kernel_size=5, kernel_y=None):
         self.kernel_size = (kernel_size, kernel_y if kernel_y is not None else kernel_size)
@@ -362,7 +390,7 @@ class ImgSimpleBlur:
         try:
             return cv2.blur(img_arr, self.kernel_size)
         except:
-            logger.error("Unable to apply simple blur to image.")
+            logger.error("単純ブラーの適用に失敗しました")
             return None
 
     def shutdown(self):
@@ -370,10 +398,19 @@ class ImgSimpleBlur:
 
 
 class ImgTrapezoidalMask:
-    def __init__(self, left, right, bottom_left, bottom_right, top, bottom, fill=[255,255,255]) -> None:
-        """
-        Apply a trapezoidal mask to an image, keeping image in
-        the trapezoid and turns everything else the fill color
+    """台形マスクを適用し、指定外領域を塗りつぶすパーツ."""
+
+    def __init__(self, left, right, bottom_left, bottom_right, top, bottom, fill=[255, 255, 255]) -> None:
+        """初期化処理を行う。
+
+        Args:
+            left (int): 上辺左端の X 座標。
+            right (int): 上辺右端の X 座標。
+            bottom_left (int): 下辺左端の X 座標。
+            bottom_right (int): 下辺右端の X 座標。
+            top (int): 上辺の Y 座標。
+            bottom (int): 下辺の Y 座標。
+            fill (list[int]): 塗りつぶし色。
         """
         self.bottom_left = bottom_left
         self.bottom_right = bottom_right
@@ -385,16 +422,7 @@ class ImgTrapezoidalMask:
         self.masks = {}
 
     def run(self, image):
-        """
-        Apply trapezoidal mask
-        # # # # # # # # # # # # #
-        # xxxxxxxxxxxxxxxxxxxxxxx
-        # xxxx ul     ur xxxxxxxx min_y
-        # xxx             xxxxxxx
-        # xx               xxxxxx
-        # x                 xxxxx
-        # ll                lr xx max_y
-        """
+        """台形マスクを適用する."""
         transformed = None
         if image is not None:
             mask = None
@@ -417,15 +445,23 @@ class ImgTrapezoidalMask:
             transformed = np.multiply(image, mask)
 
         return transformed
-    
+
     def shutdown(self):
-        self.masks = {}  # free cached masks
+        self.masks = {}  # キャッシュしたマスクを解放
 
 
 class ImgCropMask:
+    """画像の一部領域のみを残すマスクを適用するパーツ."""
+
     def __init__(self, left=0, top=0, right=0, bottom=0, fill=[255, 255, 255]) -> None:
-        """
-        Apply a mask to top and/or bottom of image.
+        """初期化処理を行う。
+
+        Args:
+            left (int): 左端の X 座標。
+            top (int): 上端の Y 座標。
+            right (int): 右端からの距離。
+            bottom (int): 下端からの距離。
+            fill (list[int]): 塗りつぶし色。
         """
         self.left = left
         self.top = top
@@ -435,19 +471,7 @@ class ImgCropMask:
         self.masks = {}
 
     def run(self, image):
-        """
-        Apply border mask
-        # # # # # # # # # # # # #
-        # xxxxxxxxxxxxxxxxxxxxx #
-        # xxxxxxxxxxxxxxxxxxxxx #
-        # xx                 xx # top
-        # xx                 xx #
-        # xx                 xx #
-        # xxxxxxxxxxxxxxxxxxxxx # (height - bottom)
-        # xxxxxxxxxxxxxxxxxxxxx #
-        # # # # # # # # # # # # #
-          left                width - right
-        """
+        """指定した領域のみを残すマスクを適用する."""
         transformed = None
         if image is not None:
             mask = None
@@ -477,15 +501,11 @@ class ImgCropMask:
         return transformed
 
     def shutdown(self):
-        self.masks = {}  # free cached masks
+        self.masks = {}  # キャッシュしたマスクを解放
 
 
 class ArrowKeyboardControls:
-    '''
-    kind of sucky control, only one press active at a time. 
-    good enough for a little testing.
-    requires that you have an CvImageView open and it has focus.
-    '''
+    """矢印キーのみで操作する簡易コントローラ."""
     def __init__(self):
         self.left = 2424832
         self.right = 2555904
@@ -503,6 +523,7 @@ class ArrowKeyboardControls:
 
 
 class Pipeline:
+    """一連の処理を順に適用するパイプライン."""
     def __init__(self, steps):
         self.steps = steps
     
@@ -517,10 +538,9 @@ class Pipeline:
 
 
 class CvImgFromFile(object):
+    """画像ファイルを読み込みRGB形式で提供するパーツ."""
     def __init__(self, file_path, image_w=None, image_h=None, image_d=None, copy=False):
-        """
-        Part to load image from file and output as RGB image
-        """
+        """ファイルから画像を読み込みRGB画像として保持する."""
         if file_path is None:
             raise ValueError("CvImage passed empty file_path")
 
@@ -529,7 +549,7 @@ class CvImgFromFile(object):
             raise ValueError(f"CvImage file_path did not resolve to a readable image file: {file_path}")
         
         #
-        # resize if there are overrides
+        # 指定があればリサイズする
         #
         height, width, depth = image_shape(image)
         if (image_h is not None and image_h != height) or (image_w is not None and image_w != width):
@@ -540,9 +560,8 @@ class CvImgFromFile(object):
             image = cv2.resize(image, (width, height))
 
         #
-        # change color depth if there are overrides.
-        # by default a color image will be loaded as BGR,
-        # so make color image into RGB.
+        # 指定があれば色空間を変換する。
+        # 既定ではカラー画像は BGR で読み込まれるため、RGB に変換する。
         #
         if image_d is not None and image_d != depth:
             if 1 == image_d:
@@ -562,6 +581,7 @@ class CvImgFromFile(object):
 
 
 class CvCam(object):
+    """OpenCV を利用したカメラ入力パーツ."""
     def __init__(self, image_w=160, image_h=120, image_d=3, iCam=0, warming_secs=5):
         self.width = image_w
         self.height = image_h
@@ -570,26 +590,26 @@ class CvCam(object):
         self.frame = None
         self.cap = cv2.VideoCapture(iCam)
 
-        # warm up until we get a frame or we timeout
+        # フレームを取得できるまでウォームアップする
         if self.cap is not None:
             # self.cap.set(3, image_w)
             # self.cap.set(4, image_h)
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, image_w)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, image_h)
-            logger.info('CvCam opened...')
-            warming_time = time.time() + warming_secs  # quick after 5 seconds
+            logger.info('CvCam をオープンしました...')
+            warming_time = time.time() + warming_secs  # おおよそ5秒で完了
             while self.frame is None and time.time() < warming_time:
-                logger.info("...warming camera")
+                logger.info("...カメラをウォームアップ中")
                 self.run()
                 time.sleep(0.2)
 
             if self.frame is None:
-                raise CameraError("Unable to start CvCam.")
+                raise CameraError("CvCam を開始できません")
         else:
-            raise CameraError("Unable to open CvCam.")
+            raise CameraError("CvCam を開けません")
 
         self.running = True
-        logger.info("CvCam ready.")
+        logger.info("CvCam の準備ができました")
 
     def poll(self):
         if self.cap.isOpened():
@@ -600,9 +620,7 @@ class CvCam(object):
                     self.frame = cv2.resize(self.frame, (self.width, self.height))
 
     def update(self):
-        '''
-        poll the camera for a frame
-        '''
+        """フレーム取得を継続するスレッドループ."""
         while self.running:
             self.poll()
 
@@ -620,6 +638,7 @@ class CvCam(object):
 
 
 class CvImageView(object):
+    """OpenCV で画像を表示する簡易ビューア."""
 
     def run(self, image):
         if image is None:
@@ -629,7 +648,7 @@ class CvImageView(object):
             cv2.imshow('frame', image)
             cv2.waitKey(1)
         except:
-            logger.error("Unable to open image window.")
+            logger.error("画像ウィンドウを開けません")
 
     def shutdown(self):
         cv2.destroyAllWindows()
@@ -639,84 +658,84 @@ if __name__ == "__main__":
     import argparse
     import sys
     
-    # parse arguments
+    # 引数を解析
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--camera", type=int, default=0,
-                        help = "index of camera if using multiple cameras")
+                        help="複数カメラを使用する場合のカメラインデックス")
     parser.add_argument("-wd", "--width", type=int, default=160,
-                        help = "width of image to capture")
+                        help="取得する画像の幅")
     parser.add_argument("-ht", "--height", type=int, default=120,
-                        help = "height of image to capture")
+                        help="取得する画像の高さ")
     parser.add_argument("-f", "--file", type=str,
-                        help = "path to image file to user rather that a camera")
-    parser.add_argument("-a", "--aug", required=True, type=str.upper, 
+                        help="カメラの代わりに使用する画像ファイルのパス")
+    parser.add_argument("-a", "--aug", required=True, type=str.upper,
                         choices=['CROP', 'TRAPEZE',
                                  "RGB2HSV", "HSV2RGB", "RGB2BGR", "BGR2RGB", "BGR2HSV", "HSV2BRG",
                                  "RGB2GREY", "BGR2GREY", "HSV2GREY",
                                  "CANNY",
                                  "BLUR", "GBLUR",
                                  "RESIZE", "SCALE"],
-                        help = "augmentation to apply")
+                        help="適用するオーグメンテーション")
     parser.add_argument("-l", "--left", type=int, default=0,
-                        help="top left horizontal pixel index, defaults to zero")
+                        help="左端のピクセル位置(デフォルト0)")
     parser.add_argument("-lb", "--left-bottom", type=int, default=None,
-                    help="bottom, left horizontal pixel index, defaults to zero")
+                        help="左下のピクセル位置(デフォルト0)")
     parser.add_argument("-r", "--right", type=int, default=None,
-                        help="top, right horizontal pixel index, defaults to image width")
+                        help="右端のピクセル位置(デフォルトは画像幅)")
     parser.add_argument("-rb", "--right-bottom", type=int, default=None,
-                    help="bottom, right horizontal pixel index, defaults to image width")
+                        help="右下のピクセル位置(デフォルトは画像幅)")
     parser.add_argument("-t", "--top", type=int, default=0,
-                        help="top vertical pixel index, defaults to 0")
+                        help="上端のピクセル位置(デフォルト0)")
     parser.add_argument("-b", "--bottom", type=int, default=None,
-                    help="bottom vertical pixel index, defaults to image height")
+                        help="下端のピクセル位置(デフォルトは画像高さ)")
     parser.add_argument("-cl", "--canny-low", type=int, default=60,
-                        help="Canny edge detection low threshold value of intensity gradient.")
+                        help="Canny エッジ検出の下限閾値")
     parser.add_argument("-ch", "--canny-high", type=int, default=110,
-                        help="Canny edge detection high threshold value of intensity gradient.")
+                        help="Canny エッジ検出の上限閾値")
     parser.add_argument("-ca", "--canny-aperture", type=int, choices=[3, 5, 7], default=3,
-                        help="Canny edge detect aperture in pixels")
+                        help="Canny エッジ検出のアパーチャサイズ")
     parser.add_argument("-gk", "--guassian-kernel", type=int, choices=[3, 5, 7, 9], default=3,
-                        help="Guassian blue kernel size in pixels")
+                        help="ガウシアンブラーのカーネルサイズ")
     parser.add_argument("-gky", "--guassian-kernel-y", type=int, choices=[3, 5, 7, 9],
-                        help="Guassian blue kernel y size in pixels, defaults to a square kernel")
+                        help="ガウシアンブラーの縦カーネルサイズ。省略時は正方形")
     parser.add_argument("-bk", "--blur-kernel", type=int, choices=[3, 5, 7, 9], default=3,
-                        help="Guassian blue kernel size in pixels")
+                        help="単純ブラーのカーネルサイズ")
     parser.add_argument("-bky", "--blur-kernel-y", type=int, choices=[3, 5, 7, 9],
-                        help="Simple blur kernel y size in pixels, defaults to a square kernel")
+                        help="単純ブラーの縦カーネルサイズ。省略時は正方形")
     parser.add_argument("-sw", "--scale", type=float,
-                        help = "scale factor for image width")
-    parser.add_argument("-sh", "--scale-height", type=float, 
-                        help = "scale factor for image height.  Defaults to scale")
+                        help="画像幅のスケール係数")
+    parser.add_argument("-sh", "--scale-height", type=float,
+                        help="画像高さのスケール係数。省略時は幅と同じ")
 
     #
-    # setup augmentations
+    # オーグメンテーションの設定
     #
     transformations = {}
 
-    # Read arguments from command line
+    # コマンドライン引数を読み込む
     args = parser.parse_args()
     
     image_source = None
     help = []
     if args.file is None:
         if args.camera < 0:
-            help.append("-c/--camera must be >= 0")
+            help.append("-c/--camera は 0 以上で指定してください")
         if args.width is None or args.width < 160:
-            help.append("-wd/--width must be >= 160")
+            help.append("-wd/--width は 160 以上で指定してください")
         if args.height is None or args.height < 120:
-            help.append("-ht/--height must be >= 120")
+            help.append("-ht/--height は 120 以上で指定してください")
 
     if "SCALE" == args.aug:
         if args.scale is None or args.scale <= 0:
-            help.append("-sw/--scale must be > 0")
+            help.append("-sw/--scale は 0 より大きい値を指定してください")
         elif args.scale_height is not None and args.scale_height <= 0:
-            help.append("-sh/--scale height must be > 0")
+            help.append("-sh/--scale-height は 0 より大きい値を指定してください")
 
     if "RESIZE" == args.aug:
         if args.width is None or args.width < 160:
-            help.append("-wd/--width must be >= 160")
+            help.append("-wd/--width は 160 以上で指定してください")
         if args.height is None or args.height < 120:
-            help.append("-ht/--height must be >= 120")
+            help.append("-ht/--height は 120 以上で指定してください")
 
 
     if len(help) > 0:
@@ -726,7 +745,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     #
-    # load file OR setup camera
+    # ファイルを読み込むかカメラを初期化する
     #
     cap = None
     width = None
@@ -744,12 +763,9 @@ if __name__ == "__main__":
     transformation = args.aug
 
     #
-    # masking tranformations
-    #
-    if "TRAPEZE" == transformation or "CROP" == transformation: 
-        #
-        # masking transformations
-        #
+    # マスク処理
+    if "TRAPEZE" == transformation or "CROP" == transformation:
+        # マスク変換
         if "TRAPEZE" == transformation:
             transformer = ImgTrapezoidalMask(
                 args.left if args.left is not None else 0,
@@ -766,7 +782,7 @@ if __name__ == "__main__":
                 args.right if args.right is not None else 0, 
                 args.bottom if args.bottom is not None else 0)
     #
-    # color space transformations
+    # 色空間の変換
     #
     elif "RGB2BGR" == transformation:
         transformer = ImgRGB2BGR()
@@ -787,27 +803,27 @@ if __name__ == "__main__":
     elif "HSV2GREY" == transformation:
         transformer = ImgHSV2GRAY()
     elif "CANNY" == transformation:
-        # canny edge detection
+        # Canny エッジ検出
         transformer = ImgCanny(args.canny_low, args.canny_high, args.canny_aperture)
     # 
-    # blur transformations
+    # ぼかし処理
     #
     elif "GBLUR" == transformation:
         transformer = ImgGaussianBlur(args.guassian_kernel, args.guassian_kernel_y)
     elif "BLUR" == transformation:
         transformer = ImgSimpleBlur(args.blur_kernel, args.blur_kernel_y)
     # 
-    # resize transformations
+    # リサイズ処理
     #
     elif "RESIZE" == transformation:
         transformer = ImageResize(args.width, args.height)
     elif "SCALE" == transformation:
         transformer = ImageScale(args.scale, args.scale_height)
     else:
-        print("-a/--aug is not a valid augmentation")
+        print("-a/--aug は有効なオーグメンテーションではありません")
         exit()
 
-    # Creating a window for later use
+    # ウィンドウを作成して表示
     window_name = 'hsv_range_picker'
     cv2.namedWindow(window_name)
 
@@ -816,17 +832,17 @@ if __name__ == "__main__":
         frame = image_source.run()
 
         #
-        # apply the augmentation
+        # オーグメンテーションを適用
         #
         transformed_image = transformer.run(frame)
 
         #
-        # show augmented image
+        # 変換後の画像を表示
         #
         cv2.imshow(window_name, transformed_image)
 
         k = cv2.waitKey(5) & 0xFF
-        if k == ord('q') or k == ord('Q'):  # 'Q' or 'q'
+        if k == ord('q') or k == ord('Q'):  # 'Q' または 'q'
             break
     
     if cap is not None:

@@ -1,8 +1,22 @@
+"""入力を変更せずに出力へ流すパーツ。"""
+
+
 class Pipe:
+    """すべての入力をそのまま出力に渡すパーツ。
+
+    名前を変更したい場合に利用します。
     """
-    Just pipe all inputs to the output, so they can be renamed.
-    """
+
     def run(self, *args):
-        # seems to be a python bug that takes a single argument
-        # return makes it into two element tuple with empty last element.
+        """入力値をそのまま返す。
+
+        Args:
+            *args: 任意の入力値。
+
+        Returns:
+            入力が 1 つの場合はその値、複数ある場合はタプル。
+        """
+
+        # 単一の引数を取ると戻り値が空要素付き 2 要素タプルになる
+        # Python のバグと思われるため回避する
         return args if len(args) > 1 else args[0]

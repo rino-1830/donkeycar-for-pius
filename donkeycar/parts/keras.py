@@ -1,11 +1,9 @@
 """
-
 keras.py
 
-Methods to create, use, save and load pilots. Pilots contain the highlevel
-logic used to determine the angle and throttle of a vehicle. Pilots can
-include one or more models to help direct the vehicles motion.
-
+パイロットを作成、利用、保存、読み込むためのメソッド群。
+パイロットは車両の角度とスロットルを決定する高レベルなロジックを保持する。
+複数のモデルを組み合わせることで車両の動きを制御できる。
 """
 
 from abc import ABC, abstractmethod
@@ -37,7 +35,7 @@ from tensorflow.python.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 ONE_BYTE_SCALE = 1.0 / 255.0
 
-# type of x
+# x の型
 XY = Union[float, np.ndarray, Tuple[Union[float, np.ndarray], ...]]
 
 
@@ -45,22 +43,19 @@ logger = getLogger(__name__)
 
 
 class KerasPilot(ABC):
-    """
-    Base class for Keras models that will provide steering and throttle to
-    guide a car.
-    """
+    """Keras モデルを用いてステアリングとスロットルを決定する基底クラス。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3)) -> None:
-        # self.model: Optional[Model] = None
+        # self.model: Optional[Model] = None  # 未使用
         self.input_shape = input_shape
         self.optimizer = "adam"
         self.interpreter = interpreter
         self.interpreter.set_model(self)
-        logger.info(f'Created {self} with interpreter: {interpreter}')
+        logger.info(f'{self} を作成しました。インタープリタ: {interpreter}')
 
     def load(self, model_path: str) -> None:
-        logger.info(f'Loading model {model_path}')
+        logger.info(f'モデル {model_path} を読み込みます')
         self.interpreter.load(model_path)
 
     def load_weights(self, model_path: str, by_name: bool = True) -> None:
@@ -85,7 +80,7 @@ class KerasPilot(ABC):
         elif optimizer_type == "rmsprop":
             optimizer = keras.optimizers.RMSprop(lr=rate, decay=decay)
         else:
-            raise Exception(f"Unknown optimizer type: {optimizer_type}")
+            raise Exception(f"未知のオプティマイザタイプです: {optimizer_type}")
         self.interpreter.set_optimizer(optimizer)
 
     def get_input_shapes(self) -> List[tf.TensorShape]:
@@ -96,14 +91,15 @@ class KerasPilot(ABC):
 
     def run(self, img_arr: np.ndarray, other_arr: List[float] = None) \
             -> Tuple[Union[float, np.ndarray], ...]:
-        """
-        Donkeycar parts interface to run the part in the loop.
+        """ループ内でパーツを実行するインターフェース。
 
-        :param img_arr:     uint8 [0,255] numpy array with image data
-        :param other_arr:   numpy array of additional data to be used in the
-                            pilot, like IMU array for the IMU model or a
-                            state vector in the Behavioural model
-        :return:            tuple of (angle, throttle)
+        Args:
+            img_arr: 画像データの ``uint8`` 配列。
+            other_arr: IMU モデル用の IMU 配列や行動モデルの状態ベクトルなど、
+                追加データの配列。
+
+        Returns:
+            角度とスロットルのタプル。
         """
         norm_arr = normalize_image(img_arr)
         np_other_array = np.array(other_arr) if other_arr else None
@@ -111,22 +107,28 @@ class KerasPilot(ABC):
 
     def inference(self, img_arr: np.ndarray, other_arr: Optional[np.ndarray]) \
             -> Tuple[Union[float, np.ndarray], ...]:
-        """ Inferencing using the interpreter
-            :param img_arr:     float32 [0,1] numpy array with normalized image
-                                data
-            :param other_arr:   numpy array of additional data to be used in the
-                                pilot, like IMU array for the IMU model or a
-                                state vector in the Behavioural model
-            :return:            tuple of (angle, throttle)
+        """インタープリタを用いた推論を行う。
+
+        Args:
+            img_arr: 正規化済み画像 ``float32`` 配列。
+            other_arr: IMU モデル用の IMU 配列や行動モデルの状態ベクトルなど、
+                追加データの配列。
+
+        Returns:
+            角度とスロットルのタプル。
         """
         out = self.interpreter.predict(img_arr, other_arr)
         return self.interpreter_to_output(out)
 
     def inference_from_dict(self, input_dict: Dict[str, np.ndarray]) \
             -> Tuple[Union[float, np.ndarray], ...]:
-        """ Inferencing using the interpreter
-            :param input_dict:  input dictionary of str and np.ndarray
-            :return:            typically tuple of (angle, throttle)
+        """入力辞書を用いて推論する。
+
+        Args:
+            input_dict: 文字列と ``np.ndarray`` の辞書。
+
+        Returns:
+            通常は ``(angle, throttle)`` のタプル。
         """
         output = self.interpreter.predict_from_dict(input_dict)
         return self.interpreter_to_output(output)
@@ -136,10 +138,7 @@ class KerasPilot(ABC):
             self,
             interpreter_out: Sequence[Union[float, np.ndarray]]) \
             -> Tuple[Union[float, np.ndarray], ...]:
-        """ Virtual method to be implemented by child classes for conversion
-            :param interpreter_out:  input data
-            :return:                 output values, possibly tuple of np.ndarray
-        """
+        """子クラスで実装されるべき出力変換処理。"""
         pass
 
     def train(self,
@@ -154,8 +153,23 @@ class KerasPilot(ABC):
               min_delta: float = .0005,
               patience: int = 5,
               show_plot: bool = False) -> tf.keras.callbacks.History:
-        """
-        trains the model
+        """モデルを学習する。
+
+        Args:
+            model_path: モデル保存先パス。
+            train_data: 学習データセット。
+            train_steps: 学習ステップ数。
+            batch_size: バッチサイズ。
+            validation_data: 検証データセット。
+            validation_steps: 検証ステップ数。
+            epochs: エポック数。
+            verbose: 表示レベル。
+            min_delta: 早期終了の最小改善量。
+            patience: 早期終了までの待機エポック数。
+            show_plot: 損失グラフを表示するかどうか。
+
+        Returns:
+            ``History`` オブジェクト。
         """
         assert isinstance(self.interpreter, KerasInterpreter)
         model = self.interpreter.model
@@ -188,33 +202,33 @@ class KerasPilot(ABC):
                 from pathlib import Path
 
                 plt.figure(1)
-                # Only do accuracy if we have that data
-                # (e.g. categorical outputs)
+                # 精度データがある場合のみ実行する
+                # （例: カテゴリ出力）
                 if 'angle_out_acc' in history.history:
                     plt.subplot(121)
 
-                # summarize history for loss
+                # 損失の履歴をまとめる
                 plt.plot(history.history['loss'])
                 plt.plot(history.history['val_loss'])
-                plt.title('model loss')
-                plt.ylabel('loss')
-                plt.xlabel('epoch')
-                plt.legend(['train', 'validate'], loc='upper right')
+                plt.title('モデル損失')
+                plt.ylabel('損失')
+                plt.xlabel('エポック')
+                plt.legend(['学習', '検証'], loc='upper right')
 
-                # summarize history for acc
+                # 精度の履歴をまとめる
                 if 'angle_out_acc' in history.history:
                     plt.subplot(122)
                     plt.plot(history.history['angle_out_acc'])
                     plt.plot(history.history['val_angle_out_acc'])
-                    plt.title('model angle accuracy')
-                    plt.ylabel('acc')
-                    plt.xlabel('epoch')
+                    plt.title('ステアリング精度')
+                    plt.ylabel('精度')
+                    plt.xlabel('エポック')
 
                 plt.savefig(Path(model_path).with_suffix('.png'))
                 # plt.show()
 
             except Exception as ex:
-                print(f"problems with loss graph: {ex}")
+                print(f"損失グラフの生成に失敗しました: {ex}")
             
         return history.history
 
@@ -223,24 +237,26 @@ class KerasPilot(ABC):
             record: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
             -> Dict[str, Union[float, np.ndarray]]:
-        """ Transforms the record into dictionary for x for training the
-        model to x,y, and applies an image augmentation. Here we assume the
-        model only takes the image as input. All model input layer's names
-        must be matched by dictionary keys."""
-        assert isinstance(record, TubRecord), "TubRecord required"
+        """学習用の ``x`` を生成し画像の拡張を行う。
+
+        ここではモデルが画像のみを入力と仮定する。モデルの入力レイヤー名と
+        辞書のキーは一致していなければならない。
+        """
+        assert isinstance(record, TubRecord), "TubRecord が必要です"
         img_arr = record.image(processor=img_processor)
         return {'img_in': img_arr}
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        """ Transforms the record into dictionary for y for training the
-        model to x,y. All model ouputs layer's names must be matched by
-        dictionary keys. """
+        """学習用の ``y`` を生成する。
+
+        モデルの出力レイヤー名と辞書のキーは一致していなければならない。
+        """
         raise NotImplementedError(f'{self} not ready yet for new training '
                                   f'pipeline')
 
     def output_types(self) -> Tuple[Dict[str, np.typename], ...]:
-        """ Used in tf.data, assume all types are doubles"""
+        """``tf.data`` で使用する型情報を返す。全て ``float64`` を想定する。"""
         shapes = self.output_shapes()
         types = tuple({k: tf.float64 for k in d} for d in shapes)
         return types
@@ -249,24 +265,12 @@ class KerasPilot(ABC):
         return {}
 
     def __str__(self) -> str:
-        """ For printing model initialisation """
+        """モデル初期化時の表示用文字列を返す。"""
         return type(self).__name__
 
 
 class KerasCategorical(KerasPilot):
-    """
-    The KerasCategorical pilot breaks the steering and throttle decisions
-    into discreet angles and then uses categorical cross entropy to train the
-    network to activate a single neuron for each steering and throttle
-    choice. This can be interesting because we get the confidence value as a
-    distribution over all choices. This uses the dk.utils.linear_bin and
-    dk.utils.linear_unbin to transform continuous real numbers into a range
-    of discreet values for training and runtime. The input and output are
-    therefore bounded and must be chosen wisely to match the data. The
-    default ranges work for the default setup. But cars which go faster may
-    want to enable a higher throttle range. And cars with larger steering
-    throw may want more bins.
-    """
+    """角度とスロットルを離散化して学習するパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -295,7 +299,7 @@ class KerasCategorical(KerasPilot):
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(record, TubRecord), "TubRecord expected"
+        assert isinstance(record, TubRecord), "TubRecord を期待します"
         angle: float = record.underlying['user/angle']
         throttle: float = record.underlying['user/throttle']
         angle = linear_bin(angle, N=15, offset=1, R=2.0)
@@ -303,7 +307,7 @@ class KerasCategorical(KerasPilot):
         return {'angle_out': angle, 'throttle_out': throttle}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'angle_out': tf.TensorShape([15]),
@@ -312,11 +316,7 @@ class KerasCategorical(KerasPilot):
 
 
 class KerasLinear(KerasPilot):
-    """
-    The KerasLinear pilot uses one neuron to output a continuous value via
-    the Keras Dense layer with linear activation. One each for steering and
-    throttle. The output is not bounded.
-    """
+    """線形活性化で連続値を出力するパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -337,13 +337,13 @@ class KerasLinear(KerasPilot):
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(record, TubRecord), 'TubRecord expected'
+        assert isinstance(record, TubRecord), 'TubRecord を期待します'
         angle: float = record.underlying['user/angle']
         throttle: float = record.underlying['user/throttle']
         return {'n_outputs0': angle, 'n_outputs1': throttle}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'n_outputs0': tf.TensorShape([]),
@@ -352,11 +352,7 @@ class KerasLinear(KerasPilot):
 
 
 class KerasMemory(KerasLinear):
-    """
-    The KerasLinearWithMemory is based on KerasLinear but uses the last n
-    steering and throttle commands as input in order to produce smoother
-    steering outputs
-    """
+    """過去の操作履歴を入力に加えることで操舵を滑らかにするパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -380,16 +376,16 @@ class KerasMemory(KerasLinear):
         super().load(model_path)
         self.mem_length = self.interpreter.get_input_shapes()[1][1] // 2
         self.mem_seq = deque([[0, self.mem_start_speed]] * self.mem_length)
-        logger.info(f'Loaded memory model with mem length {self.mem_length}')
+        logger.info(f'メモリモデルを読み込みました。履歴長さ {self.mem_length}')
 
     def run(self, img_arr: np.ndarray, other_arr: List[float] = None) -> \
             Tuple[Union[float, np.ndarray], ...]:
-        # Only called at start to fill the previous values
+        # 起動時に以前の値を埋めるために一度だけ呼ばれる
 
         np_mem_arr = np.array(self.mem_seq).reshape((2 * self.mem_length,))
         img_arr_norm = normalize_image(img_arr)
         angle, throttle = super().inference(img_arr_norm, np_mem_arr)
-        # fill new values into back of history list for next call
+        # 新しい値を履歴の末尾に追加する
         self.mem_seq.popleft()
         self.mem_seq.append([angle, throttle])
         return angle, throttle
@@ -399,10 +395,9 @@ class KerasMemory(KerasLinear):
             record: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
             -> Dict[str, Union[float, np.ndarray]]:
-        assert isinstance(record, list), 'List[TubRecord] expected'
+        assert isinstance(record, list), 'List[TubRecord] を期待します'
         assert len(record) == self.mem_length + 1, \
-            f"Record list of length {self.mem_length} required but " \
-            f"{len(record)} was passed"
+            f"{self.mem_length} 個のレコードが必要ですが {len(record)} 個渡されました"
         img_arr = record[-1].image(processor=img_processor)
         mem = [[r.underlying['user/angle'], r.underlying['user/throttle']]
                for r in record[:-1]]
@@ -411,13 +406,13 @@ class KerasMemory(KerasLinear):
 
     def y_transform(self, records: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(records, list), 'List[TubRecord] expected'
+        assert isinstance(records, list), 'List[TubRecord] を期待します'
         angle = records[-1].underlying['user/angle']
         throttle = records[-1].underlying['user/throttle']
         return {'n_outputs0': angle, 'n_outputs1': throttle}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
         shapes = ({'img_in': tf.TensorShape(img_shape),
                    'mem_in': tf.TensorShape(2 * self.mem_length)},
@@ -432,6 +427,7 @@ class KerasMemory(KerasLinear):
 
 
 class KerasInferred(KerasPilot):
+    """ステアリングからスロットルを推定するパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3)):
@@ -449,12 +445,12 @@ class KerasInferred(KerasPilot):
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(record, TubRecord), "TubRecord expected"
+        assert isinstance(record, TubRecord), "TubRecord を期待します"
         angle: float = record.underlying['user/angle']
         return {'n_outputs0': angle}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'n_outputs0': tf.TensorShape([])})
@@ -462,11 +458,8 @@ class KerasInferred(KerasPilot):
 
 
 class KerasIMU(KerasPilot):
-    """
-    A Keras part that take an image and IMU vector as input,
-    outputs steering and throttle
-    """
-    # keys for imu data in TubRecord
+    """画像と IMU ベクトルを入力として扱うパイロット。"""
+    # TubRecord から取得する IMU データのキー
     imu_vec = [f'imu/{f}_{x}' for f in ('acl', 'gyr') for x in 'xyz']
 
     def __init__(self,
@@ -496,23 +489,23 @@ class KerasIMU(KerasPilot):
             record: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
             -> Dict[str, Union[float, np.ndarray]]:
-        # this transforms the record into x for training the model to x,y
-        assert isinstance(record, TubRecord), 'TubRecord expected'
+        # 学習用の x へレコードを変換する
+        assert isinstance(record, TubRecord), 'TubRecord を期待します'
         img_arr = record.image(processor=img_processor)
         imu_arr = np.array([record.underlying[k] for k in self.imu_vec])
         return {'img_in': img_arr, 'imu_in': imu_arr}
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(record, TubRecord), "TubRecord expected"
+        assert isinstance(record, TubRecord), "TubRecord を期待します"
         angle: float = record.underlying['user/angle']
         throttle: float = record.underlying['user/throttle']
         return {'out_0': angle, 'out_1': throttle}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
-        # the keys need to match the models input/output layers
+        # モデルの入出力レイヤー名にキーを合わせる必要がある
         shapes = ({'img_in': tf.TensorShape(img_shape),
                    'imu_in': tf.TensorShape([self.num_imu_inputs])},
                   {'out_0': tf.TensorShape([]),
@@ -521,10 +514,7 @@ class KerasIMU(KerasPilot):
 
 
 class KerasBehavioral(KerasCategorical):
-    """
-    A Keras part that take an image and Behavior vector as input,
-    outputs steering and throttle
-    """
+    """画像と行動ベクトルを入力として扱うパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -542,16 +532,16 @@ class KerasBehavioral(KerasCategorical):
             record: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
             -> Dict[str, Union[float, np.ndarray]]:
-        assert isinstance(record, TubRecord), 'TubRecord expected'
-        # this transforms the record into x for training the model to x,y
+        assert isinstance(record, TubRecord), 'TubRecord を期待します'
+        # 学習用の x へレコードを変換する
         img_arr = record.image(processor=img_processor)
         bhv_arr = np.array(record.underlying['behavior/one_hot_state_array'])
         return {'img_in': img_arr, 'xbehavior_in': bhv_arr}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
-        # the keys need to match the models input/output layers
+        # モデルの入出力レイヤー名にキーを合わせる必要がある
         shapes = ({'img_in': tf.TensorShape(img_shape),
                    'xbehavior_in': tf.TensorShape([self.num_behavior_inputs])},
                   {'angle_out': tf.TensorShape([15]),
@@ -560,10 +550,7 @@ class KerasBehavioral(KerasCategorical):
 
 
 class KerasLocalizer(KerasPilot):
-    """
-    A Keras part that take an image as input,
-    outputs steering and throttle, and localisation category
-    """
+    """画像から位置を推定するパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -587,7 +574,7 @@ class KerasLocalizer(KerasPilot):
 
     def y_transform(self, record: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        assert isinstance(record, TubRecord), "TubRecord expected"
+        assert isinstance(record, TubRecord), "TubRecord を期待します"
         angle: float = record.underlying['user/angle']
         throttle: float = record.underlying['user/throttle']
         loc = record.underlying['localizer/location']
@@ -596,9 +583,9 @@ class KerasLocalizer(KerasPilot):
         return {'angle': angle, 'throttle': throttle, 'zloc': loc_one_hot}
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
-        # the keys need to match the models input/output layers
+        # モデルの入出力レイヤー名にキーを合わせる必要がある
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'angle': tf.TensorShape([]),
                    'throttle': tf.TensorShape([]),
@@ -607,6 +594,7 @@ class KerasLocalizer(KerasPilot):
 
 
 class KerasLSTM(KerasPilot):
+    """LSTM を用いて時系列画像を処理するパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -634,19 +622,17 @@ class KerasLSTM(KerasPilot):
             records: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
         -> Dict[str, Union[float, np.ndarray]]:
-        """ Transforms the record sequence into x for training the model to
-            x, y. """
-        assert isinstance(records, list), 'List[TubRecord] expected'
+        """レコードのシーケンスを ``x`` に変換して学習に用いる。"""
+        assert isinstance(records, list), 'List[TubRecord] を期待します'
         assert len(records) == self.seq_length, \
-            f"Record list of length {self.seq_length} required but " \
-            f"{len(records)} was passed"
+            f"{self.seq_length} 個のレコードが必要ですが {len(records)} 個渡されました"
         img_arrays = [rec.image(processor=img_processor) for rec in records]
         return {'img_in': np.array(img_arrays)}
 
     def y_transform(self, records: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        """ Only return the last entry of angle/throttle"""
-        assert isinstance(records, list), 'List[TubRecord] expected'
+        """角度とスロットルの最後の値のみを返す。"""
+        assert isinstance(records, list), 'List[TubRecord] を期待します'
         angle = records[-1].underlying['user/angle']
         throttle = records[-1].underlying['user/throttle']
         return {'model_outputs': [angle, throttle]}
@@ -672,9 +658,9 @@ class KerasLSTM(KerasPilot):
         return steering, throttle
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
-        # the keys need to match the models input/output layers
+        # モデルの入出力レイヤー名にキーを合わせる必要がある
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'model_outputs': tf.TensorShape([self.num_outputs])})
         return shapes
@@ -685,6 +671,7 @@ class KerasLSTM(KerasPilot):
 
 
 class Keras3D_CNN(KerasPilot):
+    """3D CNN を利用した時系列画像パイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -710,19 +697,17 @@ class Keras3D_CNN(KerasPilot):
             records: Union[TubRecord, List[TubRecord]],
             img_processor: Callable[[np.ndarray], np.ndarray]) \
             -> Dict[str, Union[float, np.ndarray]]:
-        """ Transforms the record sequence into x for training the model to
-            x, y. """
-        assert isinstance(records, list), 'List[TubRecord] expected'
+        """レコードのシーケンスを ``x`` に変換して学習に用いる。"""
+        assert isinstance(records, list), 'List[TubRecord] を期待します'
         assert len(records) == self.seq_length, \
-            f"Record list of length {self.seq_length} required but " \
-            f"{len(records)} was passed"
+            f"{self.seq_length} 個のレコードが必要ですが {len(records)} 個渡されました"
         img_seq = [rec.image(processor=img_processor) for rec in records]
         return {'img_in': np.array(img_seq)}
 
     def y_transform(self, records: Union[TubRecord, List[TubRecord]]) \
             -> Dict[str, Union[float, List[float]]]:
-        """ Only return the last entry of angle/throttle"""
-        assert isinstance(records, list), 'List[TubRecord] expected'
+        """角度とスロットルの最後の値のみを返す。"""
+        assert isinstance(records, list), 'List[TubRecord] を期待します'
         angle = records[-1].underlying['user/angle']
         throttle = records[-1].underlying['user/throttle']
         return {'outputs': [angle, throttle]}
@@ -748,15 +733,16 @@ class Keras3D_CNN(KerasPilot):
         return steering, throttle
 
     def output_shapes(self):
-        # need to cut off None from [None, 120, 160, 3] tensor shape
+        # [None, 120, 160, 3] から None を除く必要がある
         img_shape = self.get_input_shapes()[0][1:]
-        # the keys need to match the models input/output layers
+        # モデルの入出力レイヤー名にキーを合わせる必要がある
         shapes = ({'img_in': tf.TensorShape(img_shape)},
                   {'outputs': tf.TensorShape([self.num_outputs])})
         return shapes
 
 
 class KerasLatent(KerasPilot):
+    """画像の潜在表現を学習するオートエンコーダパイロット。"""
     def __init__(self,
                  interpreter: Interpreter = KerasInterpreter(),
                  input_shape: Tuple[int, ...] = (120, 160, 3),
@@ -781,16 +767,17 @@ class KerasLatent(KerasPilot):
 
 
 def conv2d(filters, kernel, strides, layer_num, activation='relu'):
-    """
-    Helper function to create a standard valid-padded convolutional layer
-    with square kernel and strides and unified naming convention
+    """標準的な畳み込み層を作成するヘルパー関数。
 
-    :param filters:     channel dimension of the layer
-    :param kernel:      creates (kernel, kernel) kernel matrix dimension
-    :param strides:     creates (strides, strides) stride
-    :param layer_num:   used in labelling the layer
-    :param activation:  activation, defaults to relu
-    :return:            tf.keras Convolution2D layer
+    Args:
+        filters: チャネル数。
+        kernel: カーネルサイズ。
+        strides: ストライド。
+        layer_num: レイヤー番号。
+        activation: 活性化関数。デフォルトは ``relu``。
+
+    Returns:
+        ``Convolution2D`` レイヤー。
     """
     return Convolution2D(filters=filters,
                          kernel_size=(kernel, kernel),
@@ -800,14 +787,15 @@ def conv2d(filters, kernel, strides, layer_num, activation='relu'):
 
 
 def core_cnn_layers(img_in, drop, l4_stride=1):
-    """
-    Returns the core CNN layers that are shared among the different models,
-    like linear, imu, behavioural
+    """複数モデルで共有される CNN の中核部分を返す。
 
-    :param img_in:          input layer of network
-    :param drop:            dropout rate
-    :param l4_stride:       4-th layer stride, default 1
-    :return:                stack of CNN layers
+    Args:
+        img_in: ネットワークの入力レイヤー。
+        drop: ドロップアウト率。
+        l4_stride: 第4層のストライド。デフォルトは ``1``。
+
+    Returns:
+        CNN レイヤーのスタック。
     """
     x = img_in
     x = conv2d(24, 5, 2, 1)(x)
@@ -825,6 +813,7 @@ def core_cnn_layers(img_in, drop, l4_stride=1):
 
 
 def default_n_linear(num_outputs, input_shape=(120, 160, 3)):
+    """線形出力を複数持つ基本モデルを生成する。"""
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
     x = core_cnn_layers(img_in, drop)
@@ -843,10 +832,10 @@ def default_n_linear(num_outputs, input_shape=(120, 160, 3)):
 
 
 def default_memory(input_shape=(120, 160, 3), mem_length=3, mem_depth=0):
+    """メモリ入力を持つモデルを生成する。"""
     drop = 0.2
     drop2 = 0.1
-    logger.info(f'Creating memory model with length {mem_length}, depth '
-                f'{mem_depth}')
+    logger.info(f'メモリモデルを作成します。長さ {mem_length}, 深さ {mem_depth}')
     img_in = Input(shape=input_shape, name='img_in')
     x = core_cnn_layers(img_in, drop)
     mem_in = Input(shape=(2 * mem_length,), name='mem_in')
@@ -870,6 +859,7 @@ def default_memory(input_shape=(120, 160, 3), mem_length=3, mem_depth=0):
 
 
 def default_categorical(input_shape=(120, 160, 3)):
+    """角度とスロットルを離散化するモデルを生成する。"""
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
     x = core_cnn_layers(img_in, drop, l4_stride=2)
@@ -877,9 +867,9 @@ def default_categorical(input_shape=(120, 160, 3)):
     x = Dropout(drop)(x)
     x = Dense(50, activation='relu', name="dense_2")(x)
     x = Dropout(drop)(x)
-    # Categorical output of the angle into 15 bins
+    # 角度を 15 ビンに分類して出力
     angle_out = Dense(15, activation='softmax', name='angle_out')(x)
-    # categorical output of throttle into 20 bins
+    # スロットルを 20 ビンに分類して出力
     throttle_out = Dense(20, activation='softmax', name='throttle_out')(x)
 
     model = Model(inputs=[img_in], outputs=[angle_out, throttle_out],
@@ -888,6 +878,7 @@ def default_categorical(input_shape=(120, 160, 3)):
 
 
 def default_imu(num_outputs, num_imu_inputs, input_shape):
+    """IMU 入力を併用するモデルを生成する。"""
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
     imu_in = Input(shape=(num_imu_inputs,), name="imu_in")
@@ -916,10 +907,11 @@ def default_imu(num_outputs, num_imu_inputs, input_shape):
 
 
 def default_bhv(num_bvh_inputs, input_shape):
+    """行動入力を組み合わせるモデルを生成する。"""
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
-    # tensorflow is ordering the model inputs alphabetically in tensorrt,
-    # so behavior must come after image, hence we put an x here in front.
+    # TensorRT では入力レイヤーがアルファベット順に並ぶため、
+    # behavior は image の後になるよう先頭に x を付ける
     bvh_in = Input(shape=(num_bvh_inputs,), name="xbehavior_in")
 
     x = core_cnn_layers(img_in, drop)
@@ -937,9 +929,9 @@ def default_bhv(num_bvh_inputs, input_shape):
     z = Dense(50, activation='relu')(z)
     z = Dropout(.1)(z)
     
-    # Categorical output of the angle into 15 bins
+    # 角度を 15 ビンに分類して出力
     angle_out = Dense(15, activation='softmax', name='angle_out')(z)
-    # Categorical output of throttle into 20 bins
+    # スロットルを 20 ビンに分類して出力
     throttle_out = Dense(20, activation='softmax', name='throttle_out')(z)
         
     model = Model(inputs=[img_in, bvh_in], outputs=[angle_out, throttle_out],
@@ -948,6 +940,7 @@ def default_bhv(num_bvh_inputs, input_shape):
 
 
 def default_loc(num_locations, input_shape):
+    """位置推定を含むモデルを生成する。"""
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
 
@@ -958,14 +951,13 @@ def default_loc(num_locations, input_shape):
     z = Dense(50, activation='relu')(x)
     z = Dropout(drop)(z)
 
-    # linear output of the angle
+    # 角度の線形出力
     angle_out = Dense(1, activation='linear', name='angle')(z)
-    # linear output of throttle
+    # スロットルの線形出力
     throttle_out = Dense(1, activation='linear', name='throttle')(z)
-    # Categorical output of location
-    # Here is a crazy detail b/c TF Lite has a bug and returns the outputs
-    # in the alphabetical order of the name of the layers, so make sure
-    # this output comes last
+    # 位置を表すカテゴリカル出力
+    # TF Lite のバグで出力がレイヤー名のアルファベット順に並ぶため
+    # この出力が最後になるようにしておく
     loc_out = Dense(num_locations, activation='softmax', name='zloc')(z)
 
     model = Model(inputs=[img_in], outputs=[angle_out, throttle_out, loc_out],
@@ -974,8 +966,9 @@ def default_loc(num_locations, input_shape):
 
 
 def rnn_lstm(seq_length=3, num_outputs=2, input_shape=(120, 160, 3)):
-    # add sequence length dimensions as keras time-distributed expects shape
-    # of (num_samples, seq_length, input_shape)
+    """LSTM を用いた時系列モデルを生成する。"""
+    # keras の TimeDistributed が要求する形状 (num_samples, seq_length, input_shape)
+    # を作るためシーケンス次元を追加する
     img_seq_shape = (seq_length,) + input_shape
     img_in = Input(shape=img_seq_shape, name='img_in')
     drop_out = 0.3
@@ -1008,47 +1001,51 @@ def rnn_lstm(seq_length=3, num_outputs=2, input_shape=(120, 160, 3)):
 
 
 def build_3d_cnn(input_shape, s, num_outputs):
-    """
+    """3D CNN モデルを生成する。
+
     Credit: https://github.com/jessecha/DNRacing/blob/master/3D_CNN_Model/model.py
 
-    :param input_shape:     image input shape
-    :param s:               sequence length
-    :param num_outputs:     output dimension
-    :return:                keras model
+    Args:
+        input_shape: 画像入力の形状。
+        s: シーケンス長。
+        num_outputs: 出力次元。
+
+    Returns:
+        Keras モデル。
     """
     drop = 0.5
     input_shape = (s, ) + input_shape
     img_in = Input(shape=input_shape, name='img_in')
     x = img_in
-    # Second layer
+    # 第2層
     x = Conv3D(
             filters=16, kernel_size=(3, 3, 3), strides=(1, 3, 3),
             data_format='channels_last', padding='same', activation='relu')(x)
     x = MaxPooling3D(
             pool_size=(1, 2, 2), strides=(1, 2, 2), padding='valid',
             data_format=None)(x)
-    # Third layer
+    # 第3層
     x = Conv3D(
             filters=32, kernel_size=(3, 3, 3), strides=(1, 1, 1),
             data_format='channels_last', padding='same', activation='relu')(x)
     x = MaxPooling3D(
         pool_size=(1, 2, 2), strides=(1, 2, 2), padding='valid',
         data_format=None)(x)
-    # Fourth layer
+    # 第4層
     x = Conv3D(
             filters=64, kernel_size=(3, 3, 3), strides=(1, 1, 1),
             data_format='channels_last', padding='same', activation='relu')(x)
     x = MaxPooling3D(
             pool_size=(1, 2, 2), strides=(1, 2, 2), padding='valid',
             data_format=None)(x)
-    # Fifth layer
+    # 第5層
     x = Conv3D(
             filters=128, kernel_size=(3, 3, 3), strides=(1, 1, 1),
             data_format='channels_last', padding='same', activation='relu')(x)
     x = MaxPooling3D(
             pool_size=(1, 2, 2), strides=(1, 2, 2), padding='valid',
             data_format=None)(x)
-    # Fully connected layer
+    # 全結合層
     x = Flatten()(x)
 
     x = Dense(256)(x)
@@ -1067,9 +1064,10 @@ def build_3d_cnn(input_shape, s, num_outputs):
 
 
 def default_latent(num_outputs, input_shape):
-    # TODO: this auto-encoder should run the standard cnn in encoding and
-    #  have corresponding decoder. Also outputs should be reversed with
-    #  images at end.
+    """潜在表現と画像を同時に出力するモデルを生成する。"""
+    # TODO: このオートエンコーダは標準の CNN を利用してエンコードし、
+    #  対応するデコーダを持つべき。さらに出力の順序を画像が最後になるよう
+    #  逆にする必要がある。
     drop = 0.2
     img_in = Input(shape=input_shape, name='img_in')
     x = img_in

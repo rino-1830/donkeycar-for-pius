@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
-Telemetry class distributing real-time metrics to external server
+"""リアルタイムのメトリクスを外部サーバへ配信する ``Telemetry`` クラス。
 
-author: @miro (Meir Tseitlin) 2020
+作者: @miro (Meir Tseitlin) 2020
 
-Note:
+注意:
 """
 import os
 import queue
@@ -21,12 +20,19 @@ LOG_MQTT_KEY = 'log/default'
 
 
 class MqttTelemetry(StreamHandler):
-    """
-    Telemetry class collects telemetry from different parts of the system and periodically sends updated to the server.
-    Telemetry reports are timestamped and stored in memory until it is pushed to the server
+    """MQTT を用いてテレメトリーを送信するクラス。
+
+    システム各部からテレメトリーを収集し、一定周期でサーバへ送信する。
+    テレメトリーのレポートはタイムスタンプ付きでメモリに保持され、サーバへ
+    プッシュされるまで保存される。
     """
 
     def __init__(self, cfg):
+        """インスタンスを初期化する。
+
+        Args:
+            cfg: Telemetry 用の設定を含むオブジェクト。
+        """
 
         StreamHandler.__init__(self)
 
@@ -37,7 +43,8 @@ class MqttTelemetry(StreamHandler):
         self._step_types = cfg.TELEMETRY_DEFAULT_TYPES.split(',')
         self._total_updates = 0
         self._donkey_name = os.environ.get('DONKEY_NAME', cfg.TELEMETRY_DONKEY_NAME)
-        self._mqtt_broker = os.environ.get('DONKEY_MQTT_BROKER', cfg.TELEMETRY_MQTT_BROKER_HOST)  # 'iot.eclipse.org'
+        # 既定値として 'iot.eclipse.org' などの MQTT ブローカーを使用
+        self._mqtt_broker = os.environ.get('DONKEY_MQTT_BROKER', cfg.TELEMETRY_MQTT_BROKER_HOST)
         self._topic = cfg.TELEMETRY_MQTT_TOPIC_TEMPLATE % self._donkey_name
         self._use_json_format = cfg.TELEMETRY_MQTT_JSON_ENABLE
         self._mqtt_client = MQTTClient()
@@ -50,17 +57,37 @@ class MqttTelemetry(StreamHandler):
             logger.addHandler(self)
 
     def add_step_inputs(self, inputs, types):
-   
-        # Add inputs if supported and not yet registered
+        """サポートされている入力を登録する。
+
+        すでに登録済みの入力は無視される。
+
+        Args:
+            inputs (list[str]): 追加する入力名のリスト。
+            types (list[str]): 各入力に対応する型。
+
+        Returns:
+            Tuple[list[str], list[str]]: 更新後の入力名と型のリスト。
+        """
+
         for ind in range(0, len(inputs or [])):
             if types[ind] in ['float', 'str', 'int'] and inputs[ind] not in self._step_inputs:
                 self._step_inputs.append(inputs[ind])
                 self._step_types.append(types[ind])
-                
-        return self._step_inputs, self._step_types        
+
+        return self._step_inputs, self._step_types
 
     @staticmethod
     def filter_supported_metrics(inputs, types):
+        """サポートされているメトリクスだけを抽出する。
+
+        Args:
+            inputs (list[str]): 入力名のリスト。
+            types (list[str]): 各入力に対応する型。
+
+        Returns:
+            Tuple[list[str], list[str]]: サポートされる入力名と型のリスト。
+        """
+
         supported_inputs = []
         supported_types = []
         for ind in range(0, len(inputs or [])):
@@ -70,12 +97,17 @@ class MqttTelemetry(StreamHandler):
         return supported_inputs, supported_types
 
     def report(self, metrics):
-        """
-        Basic reporting - gets arbitrary dictionary with values
+        """任意の値を持つ辞書を受け取りレポートを行う。
+
+        Args:
+            metrics (dict): 送信するメトリクス。
+
+        Returns:
+            int: 秒単位のタイムスタンプ。
         """
         curr_time = int(time.time())
 
-        # Store sample with time rounded to second
+        # 秒単位に丸めた時刻でサンプルを保存
         try:
             self._telem_q.put((curr_time, metrics), block=False)
         except queue.Full:
@@ -84,19 +116,23 @@ class MqttTelemetry(StreamHandler):
         return curr_time
 
     def emit(self, record):
-        """
-        Logging interface (to allow to use Python logging module to log directly to telemetry)
+        """logging モジュールから直接テレメトリーへ出力するためのインターフェース。
+
+        Args:
+            record (logging.LogRecord): ログレコード。
         """
         msg = {LOG_MQTT_KEY: self.format(record)}
         self.report(msg)
 
     @property
     def qsize(self):
+        """キューに格納されたテレメトリーデータの数を返す。"""
         return self._telem_q.qsize()
 
     def publish(self):
+        """キュー内のデータを MQTT ブローカーへ送信する。"""
 
-        # Create packet
+        # パケットを作成
         packet = {}
         while not self._telem_q.empty():
             next_item = self._telem_q.get()
@@ -112,49 +148,53 @@ class MqttTelemetry(StreamHandler):
             try:
                 self._mqtt_client.publish(self._topic, payload)
             except Exception as e:
-                logger.error(f'Error publishing log {self._topic}: {e}')
+                logger.error(f'ログ {self._topic} の送信エラー: {e}')
         else:
-            # Publish only the last timestamp for per step metrics
+            # ステップごとのメトリクスは最後のタイムスタンプのみ送信
             last_sample = packet[list(packet)[-1]]
             for k, v in last_sample.items():
                 if k in self._step_inputs:
                     topic = f'{self._topic}/{k}'
                     
                     try:
-                        # Convert unsupported numpy types to python standard
+                        # 非対応の numpy 型を標準の Python 型に変換
                         if isinstance(v, np.generic):
                             v = np.asscalar(v)
 
                         self._mqtt_client.publish(topic, v)
                     except TypeError:
-                        logger.error(f'Cannot publish topic "{topic}" with value of type {type(v)}')
+                        logger.error(f'値の型 {type(v)} ではトピック "{topic}" を送信できません')
                     except Exception as e:
-                        logger.error(f'Error publishing log {topic}: {e}')
+                        logger.error(f'ログ {topic} の送信エラー: {e}')
 
-            # Publish all logs
+            # すべてのログを送信
             for tm, sample in packet.items():
                 if LOG_MQTT_KEY in sample:
                     topic = f'{self._topic}/{LOG_MQTT_KEY}'
                     try:
                         self._mqtt_client.publish(topic, sample[LOG_MQTT_KEY])
                     except Exception as e:
-                        logger.error(f'Error publishing log {topic}: {e}')
+                        logger.error(f'ログ {topic} の送信エラー: {e}')
 
         self._total_updates += 1
         return
 
     def run(self, *args):
-        """
-        API function needed to use as a Donkey part. Accepts values,
-        pairs them with their inputs keys and saves them to disk.
+        """Donkey パーツとして値を受け取り、入力キーと組み合わせて保存する。
+
+        Args:
+            *args: 各入力に対応する値。
+
+        Returns:
+            int: キューに格納されたデータ数。
         """
         assert len(self._step_inputs) == len(args)
         
-        # Add to queue
+        # キューへ追加
         record = dict(zip(self._step_inputs, args))
         self.report(record)
 
-        # Periodic publish
+        # 一定間隔で送信
         curr_time = time.time()
         if curr_time - self._last_publish > self.PUBLISH_PERIOD and self.qsize > 0:
 
@@ -163,22 +203,36 @@ class MqttTelemetry(StreamHandler):
         return self.qsize
 
     def run_threaded(self, *args):
+        """スレッド実行時に値を受け取るエントリポイント。
+
+        Args:
+            *args: 各入力に対応する値。
+
+        Returns:
+            int: キューに格納されたデータ数。
+        """
 
         assert len(self._step_inputs) == len(args)
 
-        # Add to queue
+        # キューへ追加
         record = dict(zip(self._step_inputs, args))
         self.report(record)
         return self.qsize
 
     def update(self):
-        logger.info(f"Telemetry MQTT server connected (publishing: { ', '.join(self._step_inputs) })")
+        """バックグラウンドで ``publish`` を周期的に実行する。"""
+
+        logger.info(
+            f"テレメトリ MQTT サーバーに接続しました (送信対象: {', '.join(self._step_inputs)})"
+        )
         while self._on:
             self.publish()
             time.sleep(self.PUBLISH_PERIOD)
 
     def shutdown(self):
-        # indicate that the thread should be stopped
+        """スレッドを停止し MQTT クライアントを終了する。"""
+
+        # スレッドを停止することを示す
         self._on = False
-        logger.debug('Stopping MQTT Telemetry')
+        logger.debug('MQTT テレメトリーを停止します')
         time.sleep(.2)

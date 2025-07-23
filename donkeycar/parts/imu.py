@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""IMU センサーを操作するパーツ群。"""
+
 import time
 SENSOR_MPU6050 = 'mpu6050'
 SENSOR_MPU9250 = 'mpu9250'
@@ -7,26 +9,35 @@ DLP_SETTING_DISABLED = 0
 CONFIG_REGISTER = 0x1A
 
 class IMU:
-    '''
-    Installation:
-    
-    - MPU6050
-    sudo apt install python3-smbus
-    or
-    sudo apt-get install i2c-tools libi2c-dev python-dev python3-dev
-    git clone https://github.com/pimoroni/py-smbus.git
-    cd py-smbus/library
-    python setup.py build
-    sudo python setup.py install
+    """IMU センサーを扱うパーツ。
 
-    pip install mpu6050-raspberrypi
-    
+    インストール手順:
+
+    - MPU6050
+        sudo apt install python3-smbus
+        または
+        sudo apt-get install i2c-tools libi2c-dev python-dev python3-dev
+        git clone https://github.com/pimoroni/py-smbus.git
+        cd py-smbus/library
+        python setup.py build
+        sudo python setup.py install
+
+        pip install mpu6050-raspberrypi
+
     - MPU9250
-    pip install mpu9250-jmdev
-    
-    '''
+        pip install mpu9250-jmdev
+
+    """
 
     def __init__(self, addr=0x68, poll_delay=0.0166, sensor=SENSOR_MPU6050, dlp_setting=DLP_SETTING_DISABLED):
+        """IMU センサーを初期化する。
+
+        Args:
+            addr: I2C アドレス。
+            poll_delay: センサー読み取り間隔の秒数。
+            sensor: センサーの種類。 ``SENSOR_MPU6050`` または ``SENSOR_MPU9250``。
+            dlp_setting: デジタル低域フィルタ(DLP)の設定値。
+        """
         self.sensortype = sensor
         if self.sensortype == SENSOR_MPU6050:
             from mpu6050 import mpu6050 as MPU6050
@@ -41,7 +52,7 @@ class IMU:
 
             self.sensor = MPU9250(
                 address_ak=AK8963_ADDRESS,
-                address_mpu_master=addr,  # In 0x68 Address
+                address_mpu_master=addr,  # 0x68 アドレスで接続する場合
                 address_mpu_slave=None,
                 bus=1,
                 gfs=GFS_1000,
@@ -63,11 +74,13 @@ class IMU:
         self.on = True
 
     def update(self):
+        """センサーを一定間隔で読み取るループを開始する。"""
         while self.on:
             self.poll()
             time.sleep(self.poll_delay)
-                
+
     def poll(self):
+        """センサーから最新の値を取得する。"""
         try:
             if self.sensortype == SENSOR_MPU6050:
                 self.accel, self.gyro, self.temp = self.sensor.get_all_data()
@@ -79,16 +92,19 @@ class IMU:
                 self.mag = { 'x' : ret[13], 'y' : ret[14], 'z' : ret[15] }
                 self.temp = ret[16]
         except:
-            print('failed to read imu!!')
-            
+            print('IMU の読み取りに失敗しました!!')
+
     def run_threaded(self):
+        """現在のセンサー値を返す (スレッド用)。"""
         return self.accel['x'], self.accel['y'], self.accel['z'], self.gyro['x'], self.gyro['y'], self.gyro['z'], self.temp
 
     def run(self):
+        """センサーを一度読み取り、値を返す。"""
         self.poll()
         return self.accel['x'], self.accel['y'], self.accel['z'], self.gyro['x'], self.gyro['y'], self.gyro['z'], self.temp
 
     def shutdown(self):
+        """センサースレッドを停止する。"""
         self.on = False
 
 

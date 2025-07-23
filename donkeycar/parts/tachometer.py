@@ -21,114 +21,89 @@ def sign(value) -> int:
 
 
 class EncoderMode:
-    FORWARD_ONLY = 1  # only sum ticks (ticks may be signed)
-    FORWARD_REVERSE = 2  # subtract ticks if throttle is negative
-    FORWARD_REVERSE_STOP = 3  # ignore ticks if throttle is zero
+    FORWARD_ONLY = 1  # 符号付きのカウントを単純に加算
+    FORWARD_REVERSE = 2  # スロットルが負のときは減算
+    FORWARD_REVERSE_STOP = 3  # スロットルがゼロのときは無視
 
 
 class AbstractEncoder(ABC):
-    """
-    Interface for an encoder.
-    To create a new encoder class, subclass from
-    AbstractEncoder and implement
-    start_ticks(), stop_ticks() and poll_ticks().
-    Tachometer() takes an encoder in it's contructor.
+    """エンコーダのインターフェース。
+
+    このクラスを継承し、:py:meth:`start_ticks`, :py:meth:`stop_ticks`,
+    :py:meth:`poll_ticks` を実装して新しいエンコーダクラスを作成する。
+    :class:`Tachometer` のコンストラクタはエンコーダを受け取る。
     """
     @abstractmethod
     def start_ticks(self):
-        """Initialize the encoder"""
+        """エンコーダを初期化する。"""
         pass
 
     @abstractmethod
     def stop_ticks(self):
-        """release the encoder resources"""
+        """エンコーダのリソースを解放する。"""
         pass
 
     @abstractmethod
-    def poll_ticks(self, direction:int):
-        """
-        Update the encoder ticks
-        direction: 1 if forward, -1 if reverse, 0 if stopped.
+    def poll_ticks(self, direction: int):
+        """エンコーダのカウントを更新する。
 
-        This will request a new value from the encoder.
+        Args:
+            direction (int): 前進なら1、後退なら-1、停止なら0。
+
+        エンコーダから新しい値を取得する。
         """
         pass
 
     @abstractmethod
-    def get_ticks(self, encoder_index:int=0) -> int:
-        """
-        Get last polled encoder ticks
-        encoder_index: zero based index of encoder.
-        return: Most recently polled encoder ticks
+    def get_ticks(self, encoder_index: int = 0) -> int:
+        """直近に取得したエンコーダカウントを返す。
 
-        This will return the value from the
-        most recent call to poll_ticks().  It 
-        will not request new values from the encoder.
+        Args:
+            encoder_index (int): 0始まりのエンコーダ番号。
+
+        Returns:
+            int: 最新のカウント値。
+
+        このメソッドは :py:meth:`poll_ticks` で取得した値を返すだけで、
+        新しい値は取得しない。
         """
         return 0
 
 
 class SerialEncoder(AbstractEncoder):
-    """
-    Encoder that requests tick count over serial port.
-    The other end is typically a microcontroller that 
-    is reading an encoder, which may be a single-channel
-    encoder (so ticks only increase) or a quarature encoder
-    (so ticks may increment or decrement).
+    """シリアルポート越しにカウントを取得するエンコーダ。
 
-    Quadrature encoders can detect when the 
-    encoder is going forward, backward or stopped.
-    For such encoders, use the default direction mode, 
-    FORWARD_ONLY, and changes in tick count will correctly 
-    be summed to the current tick count.
+    反対側には通常、エンコーダを読むマイコンがあり、単一チャネルエンコーダ
+    （カウントが増えるだけ）またはクアドラチャエンコーダ（増減する）のいずれかを
+    使用する。
 
-    Single channel encoders cannot encode direction;
-    their count will only ever increase.  So this part
-    can take the signed throttle value as direction and
-    use it to decide if the ticks should be incremented
-    or decremented. 
-    For vehicles that 'coast' at zero throttle, choose
-    FORWARD_BACKWARD direction mode so we continue to 
-    integrate ticks while coasting.
-    For vehicles with brakes or that otherwise stop quickly, 
-    choose FORWARD_BACKWARD_STOP direction mode 
-    so encoder noise is not integrated while stopped.
+    クアドラチャエンコーダは前進・後退・停止を検出できるため、デフォルトの
+    ``FORWARD_ONLY`` モードを使えばカウント変化が正しく合算される。
 
-    This part assumes a microcontroller connected via
-    serial port that implements the following 
-    'r/p/c' protocol:
+    単一チャネルエンコーダは進行方向を判別できないため、符号付きスロットル値を
+    方向として利用し、カウントを増減させる。ゼロスロットルで惰性走行する車両には
+    ``FORWARD_BACKWARD`` を、すぐに停止する車両には ``FORWARD_BACKWARD_STOP`` を
+    選ぶとよい。
 
-    Commands are sent to the microcontroller 
-    one per line (ending in '\n'):
-    'r' command resets position to zero
-    'p' command sends position immediately
-    'c' command starts/stops continuous mode
-        - if it is followed by an integer,
-          then use this as the delay in ms
-          between readings.
-        - if it is not followed by an integer
-          then stop continuous mode
-    
-    The microcontroller sends one reading per line.
-    Each reading includes the tick count and the time
-    that the reading was taken, separated by a comma
-    and ending in a newline.  Readings for multiple
-    encoders are separated by colons.
+    このクラスは ``r/p/c`` プロトコルを実装したマイコンとシリアル接続していることを
+    想定する。
 
-        {ticks},{milliseconds};{ticks},{milliseconds}\n
+    **コマンド**（各行末に ``\n``）:
 
-    There is an example arduino sketch that implements the
-    'r/p/c' protocol using the teensy encoder library at 
-    donkeycar/arduino/encoder/encoder.ino  The sketch
-    presumes a quadrature encoder connect to pins 2 & 3
-    of an arduino.  If you have a different microcontroller
-    or want to use different pins or if you want to
-    use a single-channel encoder, then modify that sketch.
+    - ``r`` : 位置をゼロにリセット
+    - ``p`` : 直ちに位置を送信
+    - ``c`` : 連続モード開始/停止。整数が続く場合は読み取り間隔(ms)、
+      何も続かない場合は停止
 
+    マイコンは ``ticks,time`` を ``;`` で区切った形式で1行ずつ送信する。
+    例: ``{ticks},{milliseconds};{ticks},{milliseconds}\n``
+
+    ``donkeycar/arduino/encoder/encoder.ino`` にこのプロトコルを用いた例がある。
+    他のマイコンやピン配置、単一チャネルエンコーダを使う場合は適宜変更すること。
     """
     def __init__(self, serial_port:SerialPort=None, debug=False):
         if serial_port is None:
-            raise ValueError("serial_port must be an instance of SerialPort")
+            raise ValueError("serial_port は SerialPort インスタンスでなければなりません")
         self.ser = serial_port
         self.ticks = [0,0]
         self.lasttick = [0,0]
@@ -138,11 +113,11 @@ class SerialEncoder(AbstractEncoder):
     
     def start_ticks(self):
         self.ser.start()
-        self.ser.writeln('r')  # restart the encoder to zero
+        self.ser.writeln('r')  # エンコーダをゼロにリセット
         # if self.poll_delay_secs > 0:
-        #     # start continuous mode if given non-zero delay
+        #     # 非ゼロ間隔が指定された場合は連続モード開始
         #     self.ser.writeln("c" + str(int(self.poll_delay_secs * 1000)))
-        self.ser.writeln('p')  # ask for the first ticks
+        self.ser.writeln('p')  # 最初のカウントを要求
         self.running = True
 
     def stop_ticks(self):
@@ -151,51 +126,50 @@ class SerialEncoder(AbstractEncoder):
             self.ser.stop()
 
     #
-    # TODO: serious bug; we need to have independant directions for each encoder;
-    #       either poll_ticks takes encoder index or we keep track of direction for each channel.
-    #       This is not an immediate problem because we never try to drive left and right wheels in the opposite direction.
+    # TODO: 深刻なバグ; 各エンコーダごとに独立した方向を持つべき。
+    #       poll_ticks でエンコーダ番号を受け取るか、チャンネル毎に方向を保持するかのどちらかにする。
+    #       左右の車輪を逆方向に回すことは現状ないため差し迫った問題ではない。
     #
-    def poll_ticks(self, direction:int):
-        """
-        read the encoder ticks
-        direction: 1 if forward, -1 if reverse, 0 if stopped.
-        return: updated encoder ticks
+    def poll_ticks(self, direction: int):
+        """エンコーダのカウントを読み取る。
+
+        Args:
+            direction (int): 1は前進、-1は後退、0は停止。
+
+        Returns:
+            None
+
+        この呼び出しでエンコーダから最新の値を取得する。
         """
         #
-        # If there are characters waiting, 
-        # then read from the serial port.
-        # Read all lines and use the last one
-        # because it has the most recent reading
+        # 受信待ちのデータがあればシリアルポートから読み込み、
+        # 全ての行を読み取って最新の行だけを使用する。
         #
         input = ''
         while (self.running and (self.ser.buffered() > 0) and (input == "")):
             _, input = self.ser.readln()
 
         #
-        # queue up another reading by sending the "p" command to the Arduino
+        # "p" コマンドを送信して次の読み取りを予約する
         #
         self.ser.writeln('p')  
 
         #
-        # if we got data, update the ticks
-        # if we got no data, then use last ticks we read
-        #
-        # data for encoders is separated by semicolon
-        # and ticks and time for single encoder
-        # is comma separated.
-        # 
-        #  "ticks,ticksMs;ticks,ticksMs"
+        # データがあればカウントを更新し、なければ前回値を使用する。
+        # 複数エンコーダのデータはセミコロン区切り、
+        # 1エンコーダの値はカンマ区切りで "ticks,time" の形式となる。
+        # 例: "ticks,ticksMs;ticks,ticksMs"
         #
         if input != '':
             try:
-                # 
-                # split separate encoder outputs
+                #
+                # エンコーダ毎の出力を分割
                 # "ticks,time;ticks,time" -> ["ticks,time", "ticks,time"]
                 #
                 values = [s.strip() for s in input.split(';')]
 
                 #
-                # split tick/time pairs for each encoder
+                # 各エンコーダの tick/time ペアを分割
                 # ["ticks,time", "ticks,time"] -> [["ticks", "time"], ["ticks", "time"]]
                 #
                 values = [v.split(',') for v in values]
@@ -207,10 +181,9 @@ class SerialEncoder(AbstractEncoder):
                         delta_ticks = total_ticks - self.lasttick[i]
 
                     #
-                    # save in our threadsafe buffers.
-                    # Grow buffers to handle the channels that
-                    # the microcontroller is returning so we
-                    # don't have to keep configuration sync'd.
+                    # スレッドセーフなバッファに保存する。
+                    # マイコンが返すチャンネル数に合わせてバッファを拡張し、
+                    # 設定との同期を不要にする。
                     #
                     if i < len(self.lasttick):
                         self.lasttick[i] = total_ticks
@@ -222,20 +195,17 @@ class SerialEncoder(AbstractEncoder):
                     else:
                         self.buffered_ticks.append(delta_ticks * direction)
             except ValueError:
-                logger.error("failure parsing encoder values from serial")
+                logger.error("シリアルからのエンコーダ値の解析に失敗")
 
         #
-        # if we can get the lock,
-        # - then update the shared global
-        # - clear the buffered values
-        # if we can't get the lock, then just skip until next cycle
+        # ロックを取得できた場合は共有値を更新してバッファをクリアし、
+        # 取得できなければ次回までスキップする。
         #
         if self.lock.acquire(blocking=False):
             try:
                 for i in range(len(self.buffered_ticks)):
                     #
-                    # grow array to handle the channels that
-                    # the microcontroller is returning
+                    # マイコンが返すチャンネル数に合わせて配列を拡張する
                     #
                     if i < len(self.ticks):
                         self.ticks[i] += self.buffered_ticks[i]
@@ -261,13 +231,11 @@ class SerialEncoder(AbstractEncoder):
 
 
 class EncoderChannel(AbstractEncoder):
-    """
-    Wrapper around SerialEncoder to pull 
-    out channel 2 as separate encoder.
+    """SerialEncoder をラップし、2 番目のチャンネルを独立したエンコーダとして扱う。
 
-    This MUST be added AFTER the parent SerialEncoder,
-    so that the parent encodere gets polled before 
-    we attempt to call get_ticks() for this encoder channel.
+    親 ``SerialEncoder`` を先にポーリングしてからこのチャンネルの
+    :py:meth:`get_ticks` を呼ぶ必要があるため、必ず親 ``SerialEncoder`` の後に
+    追加すること。
     """
     def __init__(self, encoder:SerialEncoder, channel:int) -> None:
         self.encoder = encoder
@@ -290,17 +258,17 @@ class EncoderChannel(AbstractEncoder):
 
 
 class GpioEncoder(AbstractEncoder):
-    """
-    An single-channel encoder read using an InputPin
-    :gpio_pin: InputPin that will get the signal
-    :debounce_ns: int number of nano seconds before accepting another 
-                  encoder signal.  This is used to ignore bounces.
-    :debug: bool True to output extra logging
+    """InputPin で読み取る単一チャネルのエンコーダ。
+
+    Args:
+        gpio_pin (InputPin): 信号を受け取るピン。
+        debounce_ns (int): 次の信号を受け付けるまでの遅延時間(ナノ秒)。
+        debug (bool): デバッグログを出力するかどうか。
     """
     def __init__(self, gpio_pin: InputPin, debounce_ns:int=0, debug=False):
-        # validate gpio_pin
+        # gpio_pin の検証
         if gpio_pin is None:
-            raise ValueError('The encoder input pin must be a valid InputPin.')
+            raise ValueError('エンコーダ入力ピンは有効な InputPin でなければなりません')
 
         self.debug = debug
         self.counter = 0
@@ -310,19 +278,14 @@ class GpioEncoder(AbstractEncoder):
         self.debounce_ns:int = debounce_ns
         self.debounce_time:int = 0
         if self.debounce_ns > 0:
-            logger.warn("GpioEncoder debounce_ns will be ignored.")
+            logger.warn("GpioEncoder: debounce_ns は無視されます")
         self.lock = threading.Lock()
 
     def _cb(self):
-        """
-        Callback routine called by GPIO when a tick is detected
-        :pin_number: int the pin number that generated the interrupt.
-        :pin_state: int the state of the pin
-        """
+        """GPIO 割り込みで呼び出されるコールバック。"""
         #
-        # we avoid blocking by updating an internal counter,
-        # then if we can get a lock, use the internal counter
-        # to update the public counter used by the application.
+        # ロック待ちでブロックしないよう内部カウンターを更新し、
+        # ロックが取れたときにその値を公開用カウンターへ反映する。
         #
         self._cb_counter += 1
         if self.lock.acquire(blocking=False):
@@ -333,22 +296,26 @@ class GpioEncoder(AbstractEncoder):
                 self.lock.release()
             
     def start_ticks(self):
-        # configure GPIO pin
+        # GPIO ピンの設定
         self.pin.start(on_input=lambda: self._cb(), edge=PinEdge.RISING)
-        logger.info(f'GpioEncoder on InputPin "RPI_GPIO.{self.pin.pin_scheme_str}.{self.pin.pin_number}" started.')
+        logger.info(
+            f'GpioEncoder: 入力ピン "RPI_GPIO.{self.pin.pin_scheme_str}.{self.pin.pin_number}" を開始しました。'
+        )
 
-    def poll_ticks(self, direction:int):  
-        """
-        read the encoder ticks
-        direction: 1 if forward, -1 if reverse, 0 if stopped.
-        return: updated encoder ticks
+    def poll_ticks(self, direction: int):
+        """エンコーダのカウントを読み取る。
+
+        Args:
+            direction (int): 1は前進、-1は後退、0は停止。
         """
         with self.lock:
             self.direction = direction
 
     def stop_ticks(self):
         self.pin.stop()
-        logger.info(f'GpioEncoder on InputPin "RPI_GPIO.{self.pin.pin_scheme_str}.{self.pin.pin_number}" stopped.')
+        logger.info(
+            f'GpioEncoder: 入力ピン "RPI_GPIO.{self.pin.pin_scheme_str}.{self.pin.pin_number}" を停止しました。'
+        )
 
     def get_ticks(self, encoder_index:int=0) -> int:
         """
@@ -381,13 +348,11 @@ class MockEncoder(AbstractEncoder):
         self.running = False
 
     def run(self, throttle:float, timestamp: int = None):
+        """モックエンコーダを更新する。"""
         if timestamp is None:
             timestamp = time.time()
 
-        #
-        # poll() passed None for throttle and steering,
-        # so we use the last value passed to run()
-        #
+        # poll() が None を渡した場合は最後に渡された値を利用する
         if throttle is not None:
             self.throttle = throttle
 
@@ -414,20 +379,9 @@ class MockEncoder(AbstractEncoder):
 
 
 class Tachometer:
-    """
-    Tachometer converts encoder ticks to revolutions
-    and supports modifying direction based on
-    throttle input.
+    """エンコーダのカウントを回転数に変換するクラス。
 
-    Parameters
-    ----------
-    encoder is an instance of an encoder class
-    derived from AbstactEncoder.  
-    config is ticks per revolution,
-    input is throttle value (used to set direction),
-    output is current number of revolutions and timestamp
-    note: if you just want raw encoder output, use 
-          ticks_per_revolution=1
+    スロットル入力に応じて進行方向を変更することもできる。
     """
 
     def __init__(self,
@@ -436,26 +390,19 @@ class Tachometer:
                  direction_mode=EncoderMode.FORWARD_ONLY,
                  poll_delay_secs:float=0.01,
                  debug=False):
-        """
-        Tachometer converts encoder ticks to revolutions
-        and supports modifying direction based on
-        throttle input.
+        """Tachometer を初期化する。
 
-        Parameters
-        ----------
-        encoder: AbstractEncoder
-            an instance of an encoder class derived from AbstactEncoder.
-        ticks_per_revolution: int
-            The number of encoder ticks per wheel revolution.
-            If you just want raw encoder output, use ticks_per_revolution=1
-        direction_mode: EncoderMode
-            Determines how revolutions count up or down based on throttle
-        poll_delay_secs: float
-            seconds between polling of encoder value; should be low or zero.
+        Args:
+            encoder (AbstractEncoder): 使用するエンコーダインスタンス。
+            ticks_per_revolution (float): ホイール1回転あたりのエンコーダカウント。
+                生のカウントが欲しい場合は ``1`` を設定する。
+            direction_mode (EncoderMode): スロットルによる回転方向の扱い方。
+            poll_delay_secs (float): エンコーダをポーリングする間隔(秒)。
+            debug (bool): デバッグ出力を有効にするか。
         """
 
         if encoder is None:
-            raise ValueError("encoder must be an instance of AbstractEncoder")
+            raise ValueError("encoder は AbstractEncoder のインスタンスでなければなりません")
         self.encoder = encoder
         self.running:bool = False
         self.ticks_per_revolution:float = ticks_per_revolution
@@ -469,29 +416,24 @@ class Tachometer:
         self.encoder.start_ticks()
         self.running = True
 
-    # TODO: refactor tachometer so we don't pass throttle to poll()
+    # TODO: poll() にスロットルを渡さずに済むようリファクタリングする
     def poll(self, throttle, timestamp):
-        """
-        Parameters
-        ----------
-        throttle : float
-            positive means forward
-            negative means backward
-            zero means stopped
-        timestamp: int, optional
-            the timestamp to apply to the tick reading
-            or None to use the current time
+        """エンコーダをポーリングして値を更新する。
+
+        Args:
+            throttle (float): 正なら前進、負なら後退、0 は停止。
+            timestamp (int, optional): この読み取りに適用する時刻。省略時は現在時刻。
         """
 
         if self.running:
-            # if a timestamp if provided, use it
+            # タイムスタンプが指定されていない場合は現在時刻を使用
             if timestamp is None:
                 timestamp = time.time()
 
-            # set direction flag based on direction mode
+            # 方向モードに応じて向きを設定
             if throttle is not None:
                 if EncoderMode.FORWARD_REVERSE == self.direction_mode:
-                    # if throttle is zero, leave direction alone to model 'coasting'
+                    # スロットルがゼロの場合は惰性走行として方向を維持
                     if throttle != 0:
                         self.direction = sign(throttle)
                 elif EncoderMode.FORWARD_REVERSE_STOP == self.direction_mode:
@@ -502,32 +444,28 @@ class Tachometer:
             self.encoder.poll_ticks(self.direction)
             self.ticks = self.encoder.get_ticks()
             if self.debug and self.ticks != lastTicks:
-                logger.info("tachometer: t = {}, r = {}, ts = {}".format(self.ticks, self.ticks / self.ticks_per_revolution, timestamp))
+                logger.info(
+                    "タコメーター: t = {}, r = {}, ts = {}".format(
+                        self.ticks,
+                        self.ticks / self.ticks_per_revolution,
+                        timestamp,
+                    )
+                )
 
     def update(self):
         while(self.running):
             self.poll(self.throttle, None)
-            time.sleep(self.poll_delay_secs)  # give other threads time
+            time.sleep(self.poll_delay_secs)  # 他のスレッドへCPU時間を譲る
 
     def run_threaded(self, throttle:float=0.0, timestamp:float=None) -> Tuple[float, float]:
-        """
-        Parameters
-        ----------
-        throttle : float
-            positive means forward
-            negative means backward
-            zero means stopped
-        timestamp: int, optional
-            the timestamp to apply to the tick reading
-            or None to use the current time
+        """スレッド実行用のインターフェース。
 
-        Returns
-        -------
-        Tuple
-            revolutions: float
-                cummulative revolutions of wheel attached to encoder
-            timestamp: float
-                the time the encoder ticks were read
+        Args:
+            throttle (float): 正なら前進、負なら後退、0 は停止。
+            timestamp (float, optional): 読み取りに適用する時刻。省略時は現在時刻。
+
+        Returns:
+            Tuple[float, float]: (累積回転数, タイムスタンプ)
         """
         if self.running:
             thisTimestamp = self.timestamp
@@ -543,10 +481,11 @@ class Tachometer:
         return 0, self.timestamp
 
     def run(self, throttle:float=1.0, timestamp:float=None) -> Tuple[float, float]:
-        """
-        throttle: sign of throttle is use used to determine direction.
-        timestamp: timestamp for update or None to use current time.
-                   This is useful for creating deterministic tests.
+        """ポーリングして結果を返すシンプルな実行ループ。
+
+        Args:
+            throttle (float): 方向決定に利用するスロットル値。
+            timestamp (float, optional): 更新に使用する時刻。省略時は現在時刻。
         """
         if self.running:
             # update throttle for next poll()
@@ -564,9 +503,7 @@ class Tachometer:
 
 
 class InverseTachometer:
-    """
-    Used by simulator: take distance and calculate revolutions
-    """
+    """シミュレータ用: 距離から回転数を計算する。"""
     def __init__(self, meters_per_revolution:float):
         self.meters_per_revolution = meters_per_revolution
         self.revolutions = 0.0
@@ -576,22 +513,21 @@ class InverseTachometer:
         return self.run_threaded(distance, timestamp)
 
     def run_threaded(self, distance:float, timestamp=None):
-        # if a timestamp if provided, use it
+        # タイムスタンプが指定されていればそれを使用
         if timestamp is None:
             timestamp = time.time()
         if is_number_type(distance):
             self.timestamp = timestamp
             self.revolutions = distance / self.meters_per_revolution
         else:
-            logger.error("distance must be a float")
+            logger.error("distance は float でなければなりません")
         return self.revolutions, self.timestamp
 
-# TODO create MockThrottleEncoder that takes throttle and turns to ticks
-# TODO create MockInverseEncoder that takes distance and turns to ticks
-# TODO with those two we should be able to create mock pose estimation pipeline
-#      for the mock drivetrain and for the simulator respectively;
-#      The trick is feeding them the throttle or distance since they are
-#      not standard parts; perhaps we should make them parts.
+# TODO: throttle から tick を生成する MockThrottleEncoder を作成する
+# TODO: 距離から tick を生成する MockInverseEncoder を作成する
+# TODO: これらを使えばモック駆動系やシミュレータ用の姿勢推定パイプラインを
+#       構築できるはず。スロットルや距離をどう渡すかが課題なので、
+#       いっそパーツ化すべきかもしれない。
 
 
 if __name__ == "__main__":
@@ -601,62 +537,62 @@ if __name__ == "__main__":
     import time
     from donkeycar.parts.pins import input_pin_by_id
 
-    # parse arguments
+    # 引数を解析
     parser = argparse.ArgumentParser()
     parser.add_argument("-r", "--rate", type=float, default=20,
-                        help = "Number of readings per second")
+                        help="1秒あたりの読み取り回数")
     parser.add_argument("-n", "--number", type=int, default=40,
-                        help = "Number of readings to collect")
-    parser.add_argument("-ppr", "--pulses-per-revolution", type=int, required=True, 
-                        help="Pulses per revolution of output shaft")
-    parser.add_argument("-d", "--direction-mode", type=int, default=1, 
+                        help="収集する読み取り数")
+    parser.add_argument("-ppr", "--pulses-per-revolution", type=int, required=True,
+                        help="出力軸1回転あたりのパルス数")
+    parser.add_argument("-d", "--direction-mode", type=int, default=1,
                         help="1=FORWARD_ONLY, 2=FORWARD_REVERSE, 3=FORWARD_REVERSE_STOP")
     parser.add_argument("-s", "--serial-port", type=str, default=None,
-                        help="serial-port to open, like '/dev/ttyACM0'")
-    parser.add_argument("-b", "--baud-rate", type=int, default=115200, 
-                        help="Serial port baud rate")
+                        help="開くシリアルポート (例: '/dev/ttyACM0')")
+    parser.add_argument("-b", "--baud-rate", type=int, default=115200,
+                        help="シリアルポートのボーレート")
     parser.add_argument("-e", "--encoder-index", type=int, default=0,
-                        help="Serial encoder index (0 based) if more than one encoder")
+                        help="複数エンコーダがある場合のインデックス (0始まり)")
     parser.add_argument("-p", "--pin", type=str, default=None,
-                        help="pin specifier for encoder InputPin, like 'RPI_GPIO.BCM.22'")  # noqa
+                        help="エンコーダ入力ピンの指定 (例: 'RPI_GPIO.BCM.22')")  # noqa
     parser.add_argument("-dbc", "--debounce-ns", type=int, default=100,
-                        help="debounce delay in nanoseconds for reading gpio pin")  # noqa
-    parser.add_argument("-db", "--debug", action='store_true', help = "show debug output")
-    parser.add_argument("-t", "--threaded", action='store_true', help = "run in threaded mode")
+                        help="GPIOピン読み取り時のデバウンス遅延(ns)")  # noqa
+    parser.add_argument("-db", "--debug", action='store_true', help="デバッグ出力を表示")
+    parser.add_argument("-t", "--threaded", action='store_true', help="スレッドモードで実行")
 
-    # Read arguments from command line
+    # コマンドライン引数を読み込む
     args = parser.parse_args()
     
     help = []
     if args.rate < 1:
-        help.append("-r/--rate: must be >= 1.")
+        help.append("-r/--rate: 1以上でなければなりません")
         
     if args.number < 1:
-        help.append("-n/--number: must be >= 1.")
+        help.append("-n/--number: 1以上でなければなりません")
         
     if args.direction_mode < 1 and args.direction_mode > 3:
-        help.append("-d/--direction-mode must be 1, 2, or")
+        help.append("-d/--direction-mode は 1, 2, 3 のいずれかでなければなりません")
 
     if args.pulses_per_revolution <= 0:
-        help.append("-ppr/--pulses-per-revolution must be > 0")
+        help.append("-ppr/--pulses-per-revolution は 0 より大きい値を指定してください")
         
     if args.serial_port is None and args.pin is None:
-        help.append("either -s/--serial_port or -p/--pin must be passed")
+        help.append("-s/--serial_port または -p/--pin のどちらかを指定してください")
 
     if args.serial_port is not None and args.pin is not None:
-        help.append("only one of -s/--serial_port or -p/--pin must be passed")
+        help.append("-s/--serial_port と -p/--pin はどちらか一方のみ指定してください")
 
     if args.serial_port is not None and len(args.serial_port) == 0:
-        help.append("-s/--serial-port not be empty if passed")
+        help.append("-s/--serial-port を指定する場合は空文字列にしないでください")
       
     if args.baud_rate <= 0:
-        help.append("-b/--baud-rate must be > 0")
+        help.append("-b/--baud-rate は 0 より大きい値を指定してください")
         
     if args.pin is not None and args.pin == "":
-        help.append("-p/--pin must be non-empty if passed")
+        help.append("-p/--pin を指定する場合は空にしないでください")
 
     if args.debounce_ns < 0:
-        help.append("-dbc/--debounce-ns must be greater than zero")
+        help.append("-dbc/--debounce-ns は 0 以上を指定してください")
                 
     if len(help) > 0:
         parser.print_help()
@@ -692,8 +628,7 @@ if __name__ == "__main__":
                 debug=args.debug)
         
         #
-        # start the threaded part
-        # and a threaded window to show plot
+        # スレッド部分を開始し、プロット表示用スレッドを起動
         #
         if args.threaded:
             update_thread = Thread(target=tachometer.update, args=())
@@ -702,10 +637,10 @@ if __name__ == "__main__":
         while scan_count < args.number:
             start_time = time.time()
 
-            # emit the scan
+            # 計測を出力
             scan_count += 1
 
-            # get most recent scan and plot it
+            # 最新の計測を取得して表示
             if args.threaded:
                 measurements = tachometer.run_threaded()
             else:
@@ -713,15 +648,15 @@ if __name__ == "__main__":
 
             print(measurements)
                                     
-            # yield time to background threads
+            # バックグラウンドスレッドに処理時間を与える
             sleep_time = seconds_per_scan - (time.time() - start_time)
             if sleep_time > 0.0:
                 time.sleep(sleep_time)
             else:
-                time.sleep(0)  # yield time to other threads
+                time.sleep(0)  # 他のスレッドへ時間を譲る
 
     except KeyboardInterrupt:
-        print('Stopping early.')
+        print('途中で停止します。')
     except Exception as e:
         print(e)
         exit(1)

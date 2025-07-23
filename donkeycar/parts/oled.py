@@ -1,4 +1,6 @@
-# requires the Adafruit ssd1306 library: pip install adafruit-circuitpython-ssd1306
+# Adafruit ssd1306 ライブラリが必要: pip install adafruit-circuitpython-ssd1306
+
+"""OLED 表示にテキストを描画するためのユーティリティ群。"""
 
 import subprocess
 import time
@@ -9,13 +11,17 @@ import adafruit_ssd1306
 
 
 class OLEDDisplay(object):
-    '''
-    Manages drawing of text on the OLED display.
-    '''
+    """OLED ディスプレイにテキストを描画するクラス。"""
     def __init__(self, rotation=0, resolution=1):
-        # Placeholder
+        """インスタンスを初期化する。
+
+        Args:
+            rotation (int): ディスプレイの回転角度。
+            resolution (int): 解像度種別。2 を指定すると高さ 64、それ以外は 32。
+        """
+        # プレースホルダー
         self._EMPTY = ''
-        # Total number of lines of text
+        # 表示できるテキスト行数
         self._SLOT_COUNT = 4
         self.slots = [self._EMPTY] * self._SLOT_COUNT
         self.display = None
@@ -26,15 +32,12 @@ class OLEDDisplay(object):
             self.height = 32
 
     def init_display(self):
-        '''
-        Initializes the OLED display.
-        '''
+        """OLED ディスプレイを初期化する。"""
         if self.display is None:
-            # Create the I2C interface.
+            # I2C インターフェースを作成する。
             i2c = busio.I2C(SCL, SDA)
-            # Create the SSD1306 OLED class.
-            # The first two parameters are the pixel width and pixel height.  Change these
-            # to the right size for your display!
+            # SSD1306 OLED クラスを生成する。
+            # 最初の 2 つの引数はピクセルの幅と高さで、使用するディスプレイに合わせて変更する。
             self.display = adafruit_ssd1306.SSD1306_I2C(128, self.height, i2c)
             self.display.rotation = self.rotation
 
@@ -42,34 +45,37 @@ class OLEDDisplay(object):
             self.display.fill(0)
             self.display.show()
 
-            # Create blank image for drawing.
-            # Make sure to create image with mode '1' for 1-bit color.
+            # 描画用の空画像を作成する。
+            # 1 ビットカラー用にモード '1' で画像を作成すること。
             self.width = self.display.width
             self.image = Image.new("1", (self.width, self.height))
 
-            # Get drawing object to draw on image.
+            # 画像に描画するためのオブジェクトを取得する。
             self.draw = ImageDraw.Draw(self.image)
 
-            # Draw a black filled box to clear the image.
+            # 画像を消去するため黒色で塗りつぶす。
             self.draw.rectangle((0, 0, self.width, self.height), outline=0, fill=0)
-            # Load Fonts
+            # フォントを読み込む
             self.font = ImageFont.load_default()
             self.clear_display()
 
     def clear_display(self):
+        """ディスプレイをクリアする。"""
         if self.draw is not None:
             self.draw.rectangle((0, 0, self.width, self.height), outline=0, fill=0)
 
     def update_slot(self, index, text):
+        """表示スロットを更新する。"""
         if index < len(self.slots):
             self.slots[index] = text
 
     def clear_slot(self, index):
+        """指定したスロットを空にする。"""
         if index < len(self.slots):
             self.slots[index] = self._EMPTY
 
     def update(self):
-        '''Display text'''
+        """スロットの内容をディスプレイに表示する。"""
         x = 0
         top = -2
         self.clear_display()
@@ -79,24 +85,29 @@ class OLEDDisplay(object):
                 self.draw.text((x, top), text, font=self.font, fill=255)
                 top += 8
 
-        # Update
+        # 更新
         self.display.rotation = self.rotation
         self.display.image(self.image)
         self.display.show()
 
 
 class OLEDPart(object):
-    '''
-    The part that updates status on the oled display.
-    '''
+    """OLED ディスプレイにステータスを表示するパート。"""
     def __init__(self, rotation, resolution, auto_record_on_throttle=False):
+        """パートを初期化する。
+
+        Args:
+            rotation (int): ディスプレイの回転角度。
+            resolution (int): 解像度種別。
+            auto_record_on_throttle (bool, optional): スロットル操作で自動記録するかどうか。
+        """
         self.oled = OLEDDisplay(rotation, resolution)
         self.oled.init_display()
         self.on = False
         if auto_record_on_throttle:
-            self.recording = 'AUTO'
+            self.recording = '自動'
         else:
-            self.recording = 'NO'
+            self.recording = 'いいえ'
         self.num_records = 0
         self.user_mode = None
         eth0 = OLEDPart.get_ip_address('eth0')
@@ -111,39 +122,50 @@ class OLEDPart(object):
             self.wlan0 = None
 
     def run(self):
+        """パートを有効化する。"""
         if not self.on:
             self.on = True
 
     def run_threaded(self, recording, num_records, user_mode):
+        """スレッド実行時に呼び出され、表示内容を更新する。
+
+        Args:
+            recording (bool): 録画中かどうか。
+            num_records (int): 記録件数。
+            user_mode (str): ユーザーモード。
+        """
         if num_records is not None and num_records > 0:
             self.num_records = num_records
 
         if recording:
-            self.recording = 'YES (Records = %s)' % (self.num_records)
+            self.recording = 'はい (記録数 = %s)' % (self.num_records)
         else:
-            self.recording = 'NO (Records = %s)' % (self.num_records)
+            self.recording = 'いいえ (記録数 = %s)' % (self.num_records)
 
-        self.user_mode = 'User Mode (%s)' % (user_mode)
+        self.user_mode = 'ユーザーモード (%s)' % (user_mode)
 
     def update_slots(self):
+        """スロットの内容を最新の状態にする。"""
         updates = [self.eth0, self.wlan0, self.recording, self.user_mode]
         index = 0
-        # Update slots
+        # スロットを更新
         for update in updates:
             if update is not None:
                 self.oled.update_slot(index, update)
                 index += 1
 
-        # Update display
+        # ディスプレイを更新
         self.oled.update()
 
     def update(self):
+        """スレッドを自走させてディスプレイを更新する。"""
         self.on = True
-        # Run threaded loop by itself
+        # 単独のスレッドループを実行
         while self.on:
             self.update_slots()
 
     def shutdown(self):
+        """ディスプレイをクリアして停止する。"""
         self.oled.clear_display()
         self.on = False
 
@@ -151,6 +173,14 @@ class OLEDPart(object):
 
     @classmethod
     def get_ip_address(cls, interface):
+        """指定インターフェースの IP アドレスを取得する。
+
+        Args:
+            interface (str): インターフェース名。
+
+        Returns:
+            str | None: 取得できない場合は ``None``。
+        """
         if OLEDPart.get_network_interface_state(interface) == 'down':
             return None
         cmd = "ifconfig %s | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1'" % interface
@@ -158,4 +188,12 @@ class OLEDPart(object):
 
     @classmethod
     def get_network_interface_state(cls, interface):
+        """インターフェースの状態を取得する。
+
+        Args:
+            interface (str): インターフェース名。
+
+        Returns:
+            str: ``up`` や ``down`` などの状態文字列。
+        """
         return subprocess.check_output('cat /sys/class/net/%s/operstate' % interface, shell=True).decode('ascii')[:-1]

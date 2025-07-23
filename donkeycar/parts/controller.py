@@ -8,19 +8,17 @@ import logging
 
 from prettytable import PrettyTable
 
-#import for syntactical ease
+# 書きやすくするためのインポート
 from donkeycar.parts.web_controller.web import LocalWebController
 from donkeycar.parts.web_controller.web import WebFpv
 
 logger = logging.getLogger(__name__)
 
 class Joystick(object):
-    '''
-    An interface to a physical joystick.
-    The joystick holds available buttons
-    and axis; both their names and values
-    and can be polled to state changes.
-    '''
+    """物理ジョイスティックへのインターフェース。
+
+    利用可能なボタンと軸の名前および値を保持し、状態変化を取得できる。
+    """
     def __init__(self, dev_fn='/dev/input/js0'):
         self.axis_states = {}
         self.button_states = {}
@@ -33,36 +31,31 @@ class Joystick(object):
 
 
     def init(self):
-        """
-        Query available buttons and axes given
-        a path in the linux device tree.
-        """
+        """Linux デバイスツリー上のパスから利用可能なボタンと軸を取得する。"""
         try:
             from fcntl import ioctl
         except ModuleNotFoundError:
             self.num_axes = 0
             self.num_buttons = 0
-            logger.warn("no support for fnctl module. joystick not enabled.")
+            logger.warn("fnctl モジュールがサポートされていないため、ジョイスティックは使用できません。")
             return False
 
         if not os.path.exists(self.dev_fn):
-            logger.warn(f"{self.dev_fn} is missing")
+            logger.warn(f"{self.dev_fn} が見つかりません")
             return False
 
-        '''
-        call once to setup connection to device and map buttons
-        '''
-        # Open the joystick device.
-        logger.info(f'Opening %s... {self.dev_fn}')
+        # デバイスとの接続を確立してボタンをマッピングする初期化処理
+        # ジョイスティックデバイスを開く
+        logger.info(f'{self.dev_fn} を開いています...')
         self.jsdev = open(self.dev_fn, 'rb')
 
-        # Get the device name.
+        # デバイス名を取得
         buf = array.array('B', [0] * 64)
         ioctl(self.jsdev, 0x80006a13 + (0x10000 * len(buf)), buf) # JSIOCGNAME(len)
         self.js_name = buf.tobytes().decode('utf-8')
-        logger.info('Device name: %s' % self.js_name)
+        logger.info('デバイス名: %s' % self.js_name)
 
-        # Get number of axes and buttons.
+        # 軸とボタンの数を取得
         buf = array.array('B', [0])
         ioctl(self.jsdev, 0x80016a11, buf) # JSIOCGAXES
         self.num_axes = buf[0]
@@ -71,7 +64,7 @@ class Joystick(object):
         ioctl(self.jsdev, 0x80016a12, buf) # JSIOCGBUTTONS
         self.num_buttons = buf[0]
 
-        # Get the axis map.
+        # 軸マップを取得
         buf = array.array('B', [0] * 0x40)
         ioctl(self.jsdev, 0x80406a32, buf) # JSIOCGAXMAP
 
@@ -80,7 +73,7 @@ class Joystick(object):
             self.axis_map.append(axis_name)
             self.axis_states[axis_name] = 0.0
 
-        # Get the button map.
+        # ボタンマップを取得
         buf = array.array('H', [0] * 200)
         ioctl(self.jsdev, 0x80406a34, buf) # JSIOCGBTNMAP
 
@@ -94,20 +87,18 @@ class Joystick(object):
 
 
     def show_map(self):
-        '''
-        list the buttons and axis found on this joystick
-        '''
+        """このジョイスティックで検出されたボタンと軸を一覧表示する。"""
         print ('%d axes found: %s' % (self.num_axes, ', '.join(self.axis_map)))
         print ('%d buttons found: %s' % (self.num_buttons, ', '.join(self.button_map)))
 
 
     def poll(self):
-        '''
-        query the state of the joystick, returns button which was pressed, if any,
-        and axis which was moved, if any. button_state will be None, 1, or 0 if no changes,
-        pressed, or released. axis_val will be a float from -1 to +1. button and axis will
-        be the string label determined by the axis map in init.
-        '''
+        """ジョイスティックの状態を取得する。
+
+        戻り値は押されたボタンと軸の名前、状態、軸の値を含む。
+        ボタン状態は変更なしの場合 ``None``、押下 ``1``、離す ``0`` を返す。
+        軸値は ``-1`` から ``+1`` の範囲の浮動小数点数。
+        """
         button = None
         button_state = None
         axis = None
@@ -116,14 +107,14 @@ class Joystick(object):
         if self.jsdev is None:
             return button, button_state, axis, axis_val
 
-        # Main event loop
+        # メインイベントループ
         evbuf = self.jsdev.read(8)
 
         if evbuf:
             tval, value, typev, number = struct.unpack('IhBB', evbuf)
 
             if typev & 0x80:
-                #ignore initialization event
+                # 初期化イベントを無視
                 return button, button_state, axis, axis_val
 
             if typev & 0x01:
@@ -132,7 +123,7 @@ class Joystick(object):
                 if button:
                     self.button_states[button] = value
                     button_state = value
-                    logger.info("button: %s state: %d" % (button, value))
+                    logger.info("ボタン: %s 状態: %d" % (button, value))
 
             if typev & 0x02:
                 axis = self.axis_map[number]
@@ -146,6 +137,7 @@ class Joystick(object):
 
 
 class PyGameJoystick(object):
+    """pygame を利用したジョイスティック入力用の基本クラス。"""
     def __init__( self,
                   poll_delay=0.0,
                   throttle_scale=1.0,
@@ -159,13 +151,13 @@ class PyGameJoystick(object):
 
         pygame.init()
 
-        # Initialize the joysticks
+        # ジョイスティックを初期化
         pygame.joystick.init()
 
         self.joystick = pygame.joystick.Joystick(which_js)
         self.joystick.init()
         name = self.joystick.get_name()
-        logger.info(f"detected joystick device: {name}")
+        logger.info(f"ジョイスティックデバイスを検出: {name}")
 
         self.axis_states = [ 0.0 for i in range(self.joystick.get_numaxes())]
         self.button_states = [ 0 for i in range(self.joystick.get_numbuttons() + self.joystick.get_numhats() * 4)]
@@ -204,7 +196,7 @@ class PyGameJoystick(object):
             state = self.joystick.get_button( i )
             if self.button_states[i] != state:
                 if not i in self.button_names:
-                    logger.info(f'button: {i}')
+                    logger.info(f'ボタン: {i}')
                     continue
                 button = self.button_names[i]
                 button_state = state
@@ -221,7 +213,7 @@ class PyGameJoystick(object):
                 state = int(state)
                 if self.button_states[iBtn] != state:
                     if not iBtn in self.button_names:
-                        logger.info(f"button: {iBtn}")
+                        logger.info(f"ボタン: {iBtn}")
                         continue
                     button = self.button_names[iBtn]
                     button_state = state
@@ -236,17 +228,25 @@ class PyGameJoystick(object):
     def set_deadzone(self, val):
         self.dead_zone = val
 
-# this class is a helper for the RCReceiver class
+# このクラスは RCReceiver 用のヘルパー
 class Channel:
+    """RC 受信の各チャンネルを表すクラス。"""
     def __init__(self, pin):
         self.pin = pin
         self.tick = None
         self.high_tick = None
 
 class RCReceiver:
+    """PWM 信号を読み取るためのレシーバー。"""
     MIN_OUT = -1
     MAX_OUT = 1
     def __init__(self, cfg, debug=False):
+        """RCReceiver の初期化処理。
+
+        Args:
+            cfg: 設定オブジェクト。
+            debug (bool): デバッグログを出力するかどうか。
+        """
         import pigpio
         self.pi = pigpio.pi()
 
@@ -272,18 +272,17 @@ class RCReceiver:
             self.pi.set_mode(channel.pin, pigpio.INPUT)
             self.cbs.append(self.pi.callback(channel.pin, pigpio.EITHER_EDGE, self.cbf))
             if self.debug:
-                logger.info(f'RCReceiver gpio {channel.pin} created')
+                logger.info(f'RCReceiver GPIO {channel.pin} を作成しました')
     
 
     def cbf(self, gpio, level, tick):
         import pigpio
-        """ Callback function for pigpio interrupt gpio. Signature is determined
-            by pigpiod library. This function is called every time the gpio
-            changes state as we specified EITHER_EDGE.  The pigpio callback library
-            sends the user-defined callback function three parameters, which it may or may not use
-        :param gpio: gpio to listen for state changes
-        :param level: rising/falling edge
-        :param tick: # of mu s since boot, 32 bit int
+        """pigpio の割り込みコールバック。
+
+        Args:
+            gpio: 監視対象の GPIO 番号。
+            level: 立ち上がり/立ち下がりエッジ。
+            tick: 起動からのマイクロ秒カウンタ。
         """
         for channel in self.channels:
             if gpio == channel.pin:            
@@ -294,8 +293,13 @@ class RCReceiver:
                         channel.tick = pigpio.tickDiff(channel.high_tick, tick)
 
     def pulse_width(self, high):
-        """
-        :return: the PWM pulse width in microseconds.
+        """PWM パルス幅をマイクロ秒で返す。
+
+        Args:
+            high: パルス幅。
+
+        Returns:
+            float: パルス幅。値が ``None`` の場合は ``0.0``。
         """
         if high is not None:
             return high
@@ -303,9 +307,14 @@ class RCReceiver:
             return 0.0
 
     def run(self, mode=None, recording=None):
-        """
-        :param mode: default user/mode
-        :param recording: default recording mode
+        """RC 信号を読み取り現在のステアリングとスロットルを返す。
+
+        Args:
+            mode: デフォルトのモード文字列。
+            recording: 録画状態のデフォルト値。
+
+        Returns:
+            tuple: ステアリング値、スロットル値、モード、録画フラグ。
         """
 
         i = 0
@@ -319,7 +328,7 @@ class RCReceiver:
                 self.signals[i] += self.MIN_OUT
             i += 1
         if self.debug:
-            logger.info(f'RC CH1 signal:{round(self.signals[0], 3)}, RC CH2 signal:{round(self.signals[1], 3)}, RC CH3 signal:{round(self.signals[2], 3)}')
+            logger.info(f'RC CH1 信号:{round(self.signals[0], 3)}, RC CH2 信号:{round(self.signals[1], 3)}, RC CH3 信号:{round(self.signals[2], 3)}')
 
         # check mode channel if present
         if (self.signals[2] - self.jitter) > 0:  
@@ -337,18 +346,14 @@ class RCReceiver:
         return self.signals[0], self.signals[1], self.mode, is_action
 
     def shutdown(self):
-        """
-        Cancel all the callbacks on shutdown
-        """
+        """終了時にすべてのコールバックを解除する。"""
         for channel in self.channels:
             self.cbs[channel].cancel()
 
 
 
 class JoystickCreator(Joystick):
-    '''
-    A Helper class to create a new joystick mapping
-    '''
+    """新しいジョイスティックマッピングを作成するためのヘルパークラス。"""
     def __init__(self, *args, **kwargs):
         super(JoystickCreator, self).__init__(*args, **kwargs)
 
@@ -362,10 +367,10 @@ class JoystickCreator(Joystick):
         return button, button_state, axis, axis_val
 
 class PS3JoystickSixAd(Joystick):
-    '''
-    An interface to a physical PS3 joystick available at /dev/input/js0
-    Contains mapping that worked for Jetson Nano using sixad for PS3 controller's connection 
-    '''
+    """/dev/input/js0 で利用可能な PS3 ジョイスティック用インターフェース。
+
+    Jetson Nano で sixad を使用した際のマッピングを含む。
+    """
     def __init__(self, *args, **kwargs):
         super(PS3JoystickSixAd, self).__init__(*args, **kwargs)
 
@@ -401,10 +406,7 @@ class PS3JoystickSixAd(Joystick):
 
 
 class PS3JoystickOld(Joystick):
-    '''
-    An interface to a physical PS3 joystick available at /dev/input/js0
-    Contains mapping that worked for Raspian Jessie drivers
-    '''
+    """/dev/input/js0 用 PS3 ジョイスティックの古いドライバー向けインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(PS3JoystickOld, self).__init__(*args, **kwargs)
 
@@ -459,10 +461,7 @@ class PS3JoystickOld(Joystick):
 
 
 class PS3Joystick(Joystick):
-    '''
-    An interface to a physical PS3 joystick available at /dev/input/js0
-    Contains mapping that work for Raspian Stretch drivers
-    '''
+    """/dev/input/js0 用 PS3 ジョイスティックインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(PS3Joystick, self).__init__(*args, **kwargs)
 
@@ -501,9 +500,7 @@ class PS3Joystick(Joystick):
 
 
 class PS4Joystick(Joystick):
-    '''
-    An interface to a physical PS4 joystick available at /dev/input/js0
-    '''
+    """/dev/input/js0 で利用可能な PS4 ジョイスティックのインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(PS4Joystick, self).__init__(*args, **kwargs)
 
@@ -550,13 +547,7 @@ class PS4Joystick(Joystick):
 
 
 class PS3JoystickPC(Joystick):
-    '''
-    An interface to a physical PS3 joystick available at /dev/input/js1
-    Seems to exhibit slightly different codes because driver is different?
-    when running from ubuntu 16.04, it will interfere w mouse until:
-    xinput set-prop "Sony PLAYSTATION(R)3 Controller" "Device Enabled" 0
-    It also wants /dev/input/js1 device filename, not js0
-    '''
+    """Ubuntu などで利用する PS3 ジョイスティックのインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(PS3JoystickPC, self).__init__(*args, **kwargs)
 
@@ -611,10 +602,7 @@ class PS3JoystickPC(Joystick):
 
 
 class PyGamePS4Joystick(PyGameJoystick):
-    '''
-    An interface to a physical PS4 joystick available via pygame
-    Windows setup: https://github.com/nefarius/ScpToolkit/releases/tag/v1.6.238.16010
-    '''
+    """pygame 経由で PS4 ジョイスティックを扱うクラス。"""
     def __init__(self, *args, **kwargs):
         super(PyGamePS4Joystick, self).__init__(*args, **kwargs)
 
@@ -649,24 +637,7 @@ class PyGamePS4Joystick(PyGameJoystick):
 
 
 class XboxOneJoystick(Joystick):
-    '''
-    An interface to a physical joystick 'Xbox Wireless Controller' controller.
-    This will generally show up on /dev/input/js0.
-    - Note that this code presumes the built-in linux driver for 'Xbox Wireless Controller'.
-      There is another user land driver called xboxdrv; this code has not been tested
-      with that driver.
-    - Note that this controller requires that the bluetooth disable_ertm parameter
-      be set to true; to do this:
-      - edit /etc/modprobe.d/xbox_bt.conf
-      - add the line: options bluetooth disable_ertm=1
-      - reboot to tha this take affect.
-      - after reboot you can vertify that disable_ertm is set to true entering this
-        command oin a terminal: cat /sys/module/bluetooth/parameters/disable_ertm
-      - the result should print 'Y'.  If not, make sure the above steps have been done corretly.
-
-    credit:
-    https://github.com/Ezward/donkeypart_ps3_controller/blob/master/donkeypart_ps3_controller/part.py
-    '''
+    """Xbox Wireless Controller 用のインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(XboxOneJoystick, self).__init__(*args, **kwargs)
 
@@ -692,14 +663,7 @@ class XboxOneJoystick(Joystick):
         }
 
 class LogitechJoystick(Joystick):
-    '''
-    An interface to a physical Logitech joystick available at /dev/input/js0
-    Contains mapping that work for Raspian Stretch drivers
-    Tested with Logitech Gamepad F710
-    https://www.amazon.com/Logitech-940-000117-Gamepad-F710/dp/B0041RR0TW
-    credit:
-    https://github.com/kevkruemp/donkeypart_logitech_controller/blob/master/donkeypart_logitech_controller/part.py
-    '''
+    """Logitech 製ジョイスティック用インターフェース。"""
     def __init__(self, *args, **kwargs):
         super(LogitechJoystick, self).__init__(*args, **kwargs)
 
@@ -735,9 +699,7 @@ class LogitechJoystick(Joystick):
 
 
 class Nimbus(Joystick):
-    #An interface to a physical joystick available at /dev/input/js0
-    #contains mappings that work for the SteelNimbus joystick
-    #on Jetson TX2, JetPack 4.2, Ubuntu 18.04
+    """SteelNimbus ジョイスティック向けインターフェース。"""
     def __init__(self, *args, **kwargs):
         super(Nimbus, self).__init__(*args, **kwargs)
 
@@ -763,11 +725,7 @@ class Nimbus(Joystick):
 
 
 class WiiU(Joystick):
-    #An interface to a physical joystick available at /dev/input/js0
-    #contains mappings may work for the WiiUPro joystick
-    #This was taken from
-    #https://github.com/autorope/donkeypart_bluetooth_game_controller/blob/master/donkeypart_bluetooth_game_controller/wiiu_config.yml
-    #and need testing!
+    """WiiUPro ジョイスティック向け設定。"""
     def __init__(self, *args, **kwargs):
         super(WiiU, self).__init__(*args, **kwargs)
 
@@ -799,7 +757,7 @@ class WiiU(Joystick):
 
 
 class RC3ChanJoystick(Joystick):
-    #An interface to a physical joystick available at /dev/input/js0
+    """3 チャンネル RC 送信機からの入力を扱う。"""
     def __init__(self, *args, **kwargs):
         super(RC3ChanJoystick, self).__init__(*args, **kwargs)
 
@@ -817,15 +775,7 @@ class RC3ChanJoystick(Joystick):
 
 
 class JoystickController(object):
-    '''
-    Class to map joystick buttons and axes to functions.
-    JoystickController is a base class. You will not use this class directly,
-    but instantiate a flavor based on your joystick type. See classes following this.
-
-    Joystick client using access to local physical input. Maps button
-    presses into actions and takes action. Interacts with the Donkey part
-    framework.
-    '''
+    """ジョイスティック入力を各種操作に割り当てるための基底クラス。"""
 
     ES_IDLE = -1
     ES_START = 0
@@ -871,39 +821,33 @@ class JoystickController(object):
 
 
     def init_js(self):
-        '''
-        Attempt to init joystick. Should be definied by derived class
-        Should return true on successfully created joystick object
-        '''
+        """派生クラスで実装すべきジョイスティック初期化処理。"""
         raise(Exception("Subclass needs to define init_js"))
 
 
     def init_trigger_maps(self):
-        '''
-        Creating mapping of buttons to functions.
-        Should be definied by derived class
-        '''
+        """ボタンと関数の対応表を作成する。派生クラスで実装すること。"""
         raise(Exception("init_trigger_maps"))
 
 
     def set_deadzone(self, val):
-        '''
-        sets the minimim throttle for recording
-        '''
+        """記録を開始する最小スロットル値を設定する。
+
+        Args:
+            val (float): スロットルのデッドゾーン値。
+        """
         self.dead_zone = val
 
 
     def print_controls(self):
-        '''
-        print the mapping of buttons and axis to functions
-        '''
+        """ボタンおよび軸のマッピングを表示する。"""
         pt = PrettyTable()
         pt.field_names = ["control", "action"]
         for button, control in self.button_down_trigger_map.items():
             pt.add_row([button, control.__name__])
         for axis, control in self.axis_trigger_map.items():
             pt.add_row([axis, control.__name__])
-        print("Joystick Controls:")
+        print("ジョイスティック操作一覧:")
         print(pt)
 
         # print("Joystick Controls:")
@@ -916,23 +860,32 @@ class JoystickController(object):
 
 
     def set_button_down_trigger(self, button, func):
-        '''
-        assign a string button descriptor to a given function call
-        '''
+        """ボタン押下時のトリガーを設定する。
+
+        Args:
+            button (str): ボタン名称。
+            func (Callable): 実行する関数。
+        """
         self.button_down_trigger_map[button] = func
 
 
     def set_button_up_trigger(self, button, func):
-        '''
-        assign a string button descriptor to a given function call
-        '''
+        """ボタン解放時のトリガーを設定する。
+
+        Args:
+            button (str): ボタン名称。
+            func (Callable): 実行する関数。
+        """
         self.button_up_trigger_map[button] = func
 
 
     def set_axis_trigger(self, axis, func):
-        '''
-        assign a string axis descriptor to a given function call
-        '''
+        """軸操作時のトリガーを設定する。
+
+        Args:
+            axis (str): 軸名称。
+            func (Callable): 実行する関数。
+        """
         self.axis_trigger_map[axis] = func
 
 
@@ -941,18 +894,17 @@ class JoystickController(object):
 
 
     def erase_last_N_records(self):
+        """直近の記録を削除する。"""
         if self.tub is not None:
             try:
                 self.tub.delete_last_n_records(self.num_records_to_erase)
-                logger.info('deleted last %d records.' % self.num_records_to_erase)
+                logger.info('直近 %d 件の記録を削除しました。' % self.num_records_to_erase)
             except:
-                logger.info('failed to erase')
+                logger.info('削除に失敗しました')
 
 
     def on_throttle_changes(self):
-        '''
-        turn on recording when non zero throttle in the user mode.
-        '''
+        """ユーザーモードでスロットルがゼロ以外になった場合に録画を開始する。"""
         if self.auto_record_on_throttle:
             recording = (abs(self.throttle) > self.dead_zone and self.mode == 'user')
             if recording != self.recording:
@@ -962,10 +914,8 @@ class JoystickController(object):
 
 
     def emergency_stop(self):
-        '''
-        initiate a series of steps to try to stop the vehicle as quickly as possible
-        '''
-        logger.warn('E-Stop!!!')
+        """緊急停止シーケンスを開始する。"""
+        logger.warn('緊急停止！')
         self.mode = "user"
         self.recording = False
         self.constant_throttle = False
@@ -974,11 +924,9 @@ class JoystickController(object):
 
 
     def update(self):
-        '''
-        poll a joystick for input events
-        '''
+        """ジョイスティック入力をポーリングする。"""
 
-        #wait for joystick to be online
+        # ジョイスティックが使用可能になるまで待機
         while self.running and self.js is None and not self.init_js():
             time.sleep(3)
 
@@ -986,29 +934,24 @@ class JoystickController(object):
             button, button_state, axis, axis_val = self.js.poll()
 
             if axis is not None and axis in self.axis_trigger_map:
-                '''
-                then invoke the function attached to that axis
-                '''
+                # 対応する関数を呼び出す
                 self.axis_trigger_map[axis](axis_val)
 
             if button and button_state >= 1 and button in self.button_down_trigger_map:
-                '''
-                then invoke the function attached to that button
-                '''
+                # ボタン押下時の関数を呼び出す
                 self.button_down_trigger_map[button]()
 
             if button and button_state == 0 and button in self.button_up_trigger_map:
-                '''
-                then invoke the function attached to that button
-                '''
+                # ボタン解放時の関数を呼び出す
                 self.button_up_trigger_map[button]()
 
             time.sleep(self.poll_delay)
 
     def do_nothing(self, param):
-        '''assign no action to the given axis
-        this is useful to unmap certain axes, for example when swapping sticks
-        '''
+        """何もしないダミー関数。
+
+        軸の割り当てを解除する際に使用する。
+        """
         pass
 
 
@@ -1027,11 +970,9 @@ class JoystickController(object):
 
 
     def toggle_manual_recording(self):
-        '''
-        toggle recording on/off
-        '''
+        """手動で録画の開始と停止を切り替える。"""
         if self.auto_record_on_throttle:
-            logger.info('auto record on throttle is enabled; ignoring toggle of manual mode.')
+            logger.info('スロットルによる自動録画が有効なため、手動モードの切り替えを無視します。')
         elif self.recording:
             self.recording = False
             self.recording_latch = self.recording
@@ -1041,13 +982,11 @@ class JoystickController(object):
             self.recording_latch = self.recording
             logger.debug(f"JoystickController::toggle_manual_recording() setting recording and recording_latch = {self.recording}")
 
-        logger.info(f'recording: {self.recording}')
+        logger.info(f'録画状態: {self.recording}')
 
 
     def increase_max_throttle(self):
-        '''
-        increase throttle scale setting
-        '''
+        """最大スロットル値を増加させる。"""
         self.throttle_scale = round(min(1.0, self.throttle_scale + 0.01), 2)
         if self.constant_throttle:
             self.throttle = self.throttle_scale
@@ -1055,13 +994,11 @@ class JoystickController(object):
         else:
             self.throttle = (self.throttle_dir * self.last_throttle_axis_val * self.throttle_scale)
 
-        logger.info(f'throttle_scale: {self.throttle_scale}')
+        logger.info(f'スロットル倍率: {self.throttle_scale}')
 
 
     def decrease_max_throttle(self):
-        '''
-        decrease throttle scale setting
-        '''
+        """最大スロットル値を減少させる。"""
         self.throttle_scale = round(max(0.0, self.throttle_scale - 0.01), 2)
         if self.constant_throttle:
             self.throttle = self.throttle_scale
@@ -1069,13 +1006,11 @@ class JoystickController(object):
         else:
             self.throttle = (self.throttle_dir * self.last_throttle_axis_val * self.throttle_scale)
 
-        logger.info(f'throttle_scale: {self.throttle_scale}')
+        logger.info(f'スロットル倍率: {self.throttle_scale}')
 
 
     def toggle_constant_throttle(self):
-        '''
-        toggle constant throttle
-        '''
+        """定速走行のオン・オフを切り替える。"""
         if self.constant_throttle:
             self.constant_throttle = False
             self.throttle = 0
@@ -1084,16 +1019,11 @@ class JoystickController(object):
             self.constant_throttle = True
             self.throttle = self.throttle_scale
             self.on_throttle_changes()
-        logger.info(f'constant_throttle: {self.constant_throttle}')
+        logger.info(f'定速走行: {self.constant_throttle}')
 
 
     def toggle_mode(self):
-        '''
-        switch modes from:
-        user: human controlled steer and throttle
-        local_angle: ai steering, human throttle
-        local: ai steering, ai throttle
-        '''
+        """走行モードを順に切り替える。"""
         if self.mode == 'user':
             self.mode = 'local_angle'
         elif self.mode == 'local_angle':
@@ -1101,7 +1031,7 @@ class JoystickController(object):
         else:
             self.mode = 'user'
         self.mode_latch = self.mode
-        logger.info(f'new mode: {self.mode}')
+        logger.info(f'新しいモード: {self.mode}')
 
 
     def chaos_monkey_on_left(self):
@@ -1117,10 +1047,12 @@ class JoystickController(object):
 
 
     def run_threaded(self, img_arr=None, mode=None, recording=None):
-        """
-        :param img_arr: current camera image or None
-        :param mode: default user/mode
-        :param recording: default recording mode
+        """スレッドモードでコントローラーを実行する。
+
+        Args:
+            img_arr: カメラ画像。
+            mode: デフォルトのモード。
+            recording: 録画状態の初期値。
         """
         self.img_arr = img_arr
 
@@ -1140,9 +1072,7 @@ class JoystickController(object):
             self.recording = self.recording_latch
             self.recording_latch = None
 
-        '''
-        process E-Stop state machine
-        '''
+        # E-Stop のステートマシン処理
         if self.estop_state > self.ES_IDLE:
             if self.estop_state == self.ES_START:
                 self.estop_state = self.ES_THROTTLE_NEG_ONE
@@ -1168,73 +1098,60 @@ class JoystickController(object):
 
 
     def run(self, img_arr=None, mode=None, recording=None):
+        """スレッドを利用しない実行関数。"""
         return self.run_threaded(img_arr, mode, recording)
 
 
     def shutdown(self):
-        #set flag to exit polling thread, then wait a sec for it to leave
+        # ポーリングスレッドを終了させるフラグを立て、少し待機
         self.running = False
         time.sleep(0.5)
 
 
 class JoystickCreatorController(JoystickController):
-    '''
-    A Controller object helps create a new controller object and mapping.
-    This is used in management/joystic_creator when mapping
-    a custom joystick.
-    '''
+    """新しいコントローラーとマッピング作成を支援するクラス。"""
     def __init__(self, *args, **kwargs):
         super(JoystickCreatorController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = JoystickCreator(self.dev_fn)
             if not self.js.init():
                 self.js = None
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
 
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
         pass
 
 
 class PS3JoystickController(JoystickController):
-    '''
-    A Controller object that maps inputs to actions
-    '''
+    """PS3 ジョイスティック用のコントローラークラス。"""
     def __init__(self, *args, **kwargs):
         super(PS3JoystickController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = PS3Joystick(self.dev_fn)
             if not self.js.init():
                 self.js = None
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
 
         self.button_down_trigger_map = {
             'select' : self.toggle_mode,
@@ -1260,26 +1177,20 @@ class PS3JoystickController(JoystickController):
 
 
 class PS3JoystickSixAdController(PS3JoystickController):
-    '''
-    PS3 controller via sixad
-    '''
+    """sixad 経由で接続された PS3 コントローラー用クラス。"""
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = PS3JoystickSixAd(self.dev_fn)
             if not self.js.init():
                 self.js = None
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
         super(PS3JoystickSixAdController, self).init_trigger_maps()
 
         self.axis_trigger_map = {
@@ -1288,31 +1199,25 @@ class PS3JoystickSixAdController(PS3JoystickController):
         }
 
 class PS4JoystickController(JoystickController):
-    '''
-    A Controller object that maps inputs to actions
-    '''
+    """PS4 ジョイスティック用のコントローラークラス。"""
     def __init__(self, *args, **kwargs):
         super(PS4JoystickController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = PS4Joystick(self.dev_fn)
             if not self.js.init():
                 self.js = None
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls for ps4
-        '''
+        """PS4 用のボタンマッピングを初期化する。"""
 
         self.button_down_trigger_map = {
             'share' : self.toggle_mode,
@@ -1331,18 +1236,14 @@ class PS4JoystickController(JoystickController):
 
 
 class PyGamePS4JoystickController(PS4JoystickController):
-    '''
-    A Controller object that maps inputs to actions
-    '''
+    """pygame を利用した PS4 コントローラー用クラス。"""
     def __init__(self, which_js=0, *args, **kwargs):
         super(PyGamePS4JoystickController, self).__init__(*args, **kwargs)
         self.which_js=which_js
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = PyGamePS4Joystick(which_js=self.which_js)
         except Exception as e:
@@ -1353,33 +1254,25 @@ class PyGamePS4JoystickController(PS4JoystickController):
 
 
 class XboxOneJoystickController(JoystickController):
-    '''
-    A Controller object that maps inputs to actions
-    credit:
-    https://github.com/Ezward/donkeypart_ps3_controller/blob/master/donkeypart_ps3_controller/part.py
-    '''
+    """Xbox One コントローラー用のコントローラークラス。"""
     def __init__(self, *args, **kwargs):
         super(XboxOneJoystickController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = XboxOneJoystick(self.dev_fn)
             self.js.init()
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def magnitude(self, reversed = False):
         def set_magnitude(axis_val):
-            '''
-            Maps raw axis values to magnitude.
-            '''
+            """軸の値をスロットルの強さに変換する。"""
             # Axis values range from -1. to 1.
             minimum = -1.
             maximum = 1.
@@ -1392,9 +1285,7 @@ class XboxOneJoystickController(JoystickController):
 
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
 
         self.button_down_trigger_map = {
             'a_button': self.toggle_mode,
@@ -1415,16 +1306,12 @@ class XboxOneJoystickController(JoystickController):
         }
 
 class XboxOneSwappedJoystickController(XboxOneJoystickController):
-    '''
-    Swap steering and throttle controls from std XBox one controller
-    '''
+    """左右のスティック操作を入れ替えた Xbox One 用コントローラー。"""
     def __init__(self, *args, **kwargs):
         super(XboxOneSwappedJoystickController, self).__init__(*args, **kwargs)
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
         super(XboxOneSwappedJoystickController, self).init_trigger_maps()
 
         # make the actual swap of the sticks
@@ -1437,32 +1324,24 @@ class XboxOneSwappedJoystickController(XboxOneJoystickController):
 
 
 class LogitechJoystickController(JoystickController):
-    '''
-    A Controller object that maps inputs to actions
-    credit:
-    https://github.com/kevkruemp/donkeypart_logitech_controller/blob/master/donkeypart_logitech_controller/part.py
-    '''
+    """Logitech コントローラー用のクラス。"""
     def __init__(self, *args, **kwargs):
         super(LogitechJoystickController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        '''
-        attempt to init joystick
-        '''
+        """ジョイスティックの初期化を試みる。"""
         try:
             self.js = LogitechJoystick(self.dev_fn)
             self.js.init()
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        '''
-        init set of mapping from buttons to function calls
-        '''
+        """ボタンから関数へのマッピングを初期化する。"""
 
         self.button_down_trigger_map = {
             'start': self.toggle_mode,
@@ -1505,31 +1384,31 @@ class LogitechJoystickController(JoystickController):
         self.decrease_max_throttle()
 
     def on_dpad_left(self):
-        logger.error("dpad left un-mapped")
+        logger.error("dpad 左は未割り当てです")
 
     def on_dpad_right(self):
-        logger.error("dpad right un-mapped")
+        logger.error("dpad 右は未割り当てです")
 
 
 class NimbusController(JoystickController):
-    #A Controller object that maps inputs to actions
+    """Nimbus コントローラー用のクラス。"""
     def __init__(self, *args, **kwargs):
         super(NimbusController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        #attempt to init joystick
+        # ジョイスティックを初期化
         try:
             self.js = Nimbus(self.dev_fn)
             self.js.init()
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        #init set of mapping from buttons to function calls
+        # ボタンと関数のマッピングを初期化
 
         self.button_down_trigger_map = {
             'y' : self.erase_last_N_records,
@@ -1544,24 +1423,24 @@ class NimbusController(JoystickController):
 
 
 class WiiUController(JoystickController):
-    #A Controller object that maps inputs to actions
+    """WiiU コントローラー用のクラス。"""
     def __init__(self, *args, **kwargs):
         super(WiiUController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        #attempt to init joystick
+        # ジョイスティックを初期化
         try:
             self.js = WiiU(self.dev_fn)
             self.js.init()
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
 
     def init_trigger_maps(self):
-        #init set of mapping from buttons to function calls
+        # ボタンと関数のマッピングを初期化
 
         self.button_down_trigger_map = {
             'Y' : self.erase_last_N_records,
@@ -1577,18 +1456,18 @@ class WiiUController(JoystickController):
 
 
 class RC3ChanJoystickController(JoystickController):
-    #A Controller object that maps inputs to actions
+    """3 チャンネル RC 用コントローラー。"""
     def __init__(self, *args, **kwargs):
         super(RC3ChanJoystickController, self).__init__(*args, **kwargs)
 
 
     def init_js(self):
-        #attempt to init joystick
+        # ジョイスティックを初期化
         try:
             self.js = RC3ChanJoystick(self.dev_fn)
             self.js.init()
         except FileNotFoundError:
-            logger.error(f"{self.dev_fn} not found.")
+            logger.error(f"{self.dev_fn} が見つかりません")
             self.js = None
         return self.js is not None
 
@@ -1612,7 +1491,7 @@ class RC3ChanJoystickController(JoystickController):
         self.toggle_mode()
 
     def init_trigger_maps(self):
-        #init set of mapping from buttons to function calls
+        # ボタンと関数のマッピングを初期化
 
         self.button_down_trigger_map = {
             'Switch-down' : self.on_switch_down,
@@ -1627,9 +1506,7 @@ class RC3ChanJoystickController(JoystickController):
 
 
 class JoyStickPub(object):
-    '''
-    Use Zero Message Queue (zmq) to publish the control messages from a local joystick
-    '''
+    """ZeroMQ を利用してローカルジョイスティックの入力を配信するクラス。"""
     def __init__(self, port = 5556, dev_fn='/dev/input/js1'):
         import zmq
         self.dev_fn = dev_fn
@@ -1652,13 +1529,11 @@ class JoyStickPub(object):
                     axis_val = 0
                 message_data = (button, button_state, axis, axis_val)
                 self.socket.send_string( "%s %d %s %f" % message_data)
-                logger.info(f"SENT {message_data}")
+                logger.info(f"送信: {message_data}")
 
 
 class JoyStickSub(object):
-    '''
-    Use Zero Message Queue (zmq) to subscribe to control messages from a remote joystick
-    '''
+    """ZeroMQ を利用してリモートジョイスティックの入力を購読するクラス。"""
     def __init__(self, ip, port = 5556):
         import zmq
         context = zmq.Context()
@@ -1680,7 +1555,7 @@ class JoyStickSub(object):
     def update(self):
         while self.running:
             payload = self.socket.recv().decode("utf-8")
-            #print("got", payload)
+            # 受信データを確認
             button, button_state, axis, axis_val = payload.split(' ')
             self.button = button
             self.button_state = (int)(button_state)
@@ -1726,7 +1601,7 @@ def get_js_controller(cfg):
     elif cfg.CONTROLLER_TYPE == "pygame":
         cont_class = PyGamePS4JoystickController
     else:
-        raise( Exception("Unknown controller type: " + cfg.CONTROLLER_TYPE))
+        raise(Exception("未知のコントローラータイプ: " + cfg.CONTROLLER_TYPE))
 
     ctr = cont_class(throttle_dir=cfg.JOYSTICK_THROTTLE_DIR,
                                 throttle_scale=cfg.JOYSTICK_MAX_THROTTLE,
@@ -1739,7 +1614,7 @@ def get_js_controller(cfg):
 
 
 if __name__ == "__main__":
- #   Testing the XboxOneJoystickController
+    # XboxOneJoystickController のテスト
     js = XboxOneJoystick('/dev/input/js0')
     js.init()
 

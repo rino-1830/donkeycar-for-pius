@@ -1,13 +1,21 @@
+"""AIで自動運転を開始するときに強いスロットルを一時的に与えるパーツ."""
+
 import time
 
 class AiLaunch():
-    '''
-    This part will apply a large thrust on initial activation. This is to help
-    in racing to start fast and then the ai will take over quickly when it's
-    up to speed.
-    '''
+    """初回起動時に大きなスロットルを適用するパーツ。
+
+    レースで素早くスタートするためのもので、十分な速度に達するとすぐにAIが制御を引き継ぎます。
+    """
 
     def __init__(self, launch_duration=1.0, launch_throttle=1.0, keep_enabled=False):
+        """オブジェクトを初期化する。
+
+        Args:
+            launch_duration: スロットルを維持する秒数。
+            launch_throttle: 適用するスロットル値。
+            keep_enabled: モード切替時に自動で起動を有効にするかどうか。
+        """
         self.active = False
         self.enabled = False
         self.timer_start = None
@@ -17,10 +25,21 @@ class AiLaunch():
         self.trigger_on_switch = keep_enabled
         
     def enable_ai_launch(self):
+        """AIローンチを有効にする。"""
         self.enabled = True
-        print('AiLauncher is enabled.')
+        print('AiLauncherが有効になりました。')
 
     def run(self, mode, ai_throttle):
+        """スロットルを更新する。
+
+        Args:
+            mode: 現在のドライブモード。
+            ai_throttle: AIが算出したスロットル値。
+
+        Returns:
+            float: 実際に使用するスロットル値。
+        """
+
         new_throttle = ai_throttle
 
         if mode != self.prev_mode:
@@ -41,7 +60,7 @@ class AiLaunch():
             self.active = False
 
         if self.active:
-            print('AiLauncher is active!!!')
+            print('AiLauncherがアクティブです!!!')
             new_throttle = self.launch_throttle
 
         return new_throttle

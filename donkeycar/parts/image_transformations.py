@@ -10,21 +10,31 @@ logger = logging.getLogger(__name__)
 class ImageTransformations:
     def __init__(self, config: Config, transformation: str,
                  post_transformation: str = None) -> object:
-        """
-        Part that constructs a list of image transformers
-        and run them in sequence to produce a transformed image
+        """画像変換パーツのリストを作成し、順番に実行して変換後の画像を生成する。
+
+        Args:
+            config: ``Config`` オブジェクト。
+            transformation: 使用する変換名。
+            post_transformation: 追加で適用する変換名。
+
+        Returns:
+            object: この ``ImageTransformations`` インスタンス。
         """
         transformations = getattr(config, transformation, [])
         if post_transformation:
             transformations += getattr(config, post_transformation, [])
         self.transformations = [image_transformer(name, config) for name in
                                 transformations]
-        logger.info(f'Creating ImageTransformations {transformations}')
+        logger.info(f'ImageTransformations {transformations} を生成')
     
     def run(self, image):
-        """
-        Run the list of tranformers on the image
-        and return transformed image.
+        """変換パーツを順番に実行して変換後の画像を返す。
+
+        Args:
+            image: 入力画像。
+
+        Returns:
+            変換後の画像。
         """
         for transformer in self.transformations:
             image = transformer.run(image)
@@ -32,14 +42,17 @@ class ImageTransformations:
 
 
 def image_transformer(name: str, config):
-    """
-    Factory for cv image transformation parts.
-    :param name: str, name of the transformation
-    :param config: object, the configuration to apply when constructing the part
-    :return: object, a cv image transformation part
+    """cv 画像変換パーツのファクトリ。
+
+    Args:
+        name: 変換の名称。
+        config: パーツ生成時に使用する設定オブジェクト。
+
+    Returns:
+        object: cv 画像変換パーツ。
     """
     #
-    # masking transformations
+    # マスキング処理
     #
     if "TRAPEZE" == name:
         return cv_parts.ImgTrapezoidalMask(
@@ -59,7 +72,7 @@ def image_transformer(name: str, config):
             config.ROI_CROP_BOTTOM
         )
     #
-    # color space transformations
+    # カラースペース変換
     #
     elif "RGB2BGR" == name:
         return cv_parts.ImgRGB2BGR()
@@ -84,12 +97,12 @@ def image_transformer(name: str, config):
     elif "GRAY2BGR" == name:
         return cv_parts.ImgGRAY2BGR()
     elif "CANNY" == name:
-        # canny edge detection
+        # Canny エッジ検出
         return cv_parts.ImgCanny(config.CANNY_LOW_THRESHOLD,
                                  config.CANNY_HIGH_THRESHOLD,
                                  config.CANNY_APERTURE)
-    # 
-    # blur transformations
+    #
+    # ぼかし処理
     #
     elif "BLUR" == name:
         if config.BLUR_GAUSSIAN:
@@ -98,8 +111,8 @@ def image_transformer(name: str, config):
         else:
             return cv_parts.ImgSimpleBlur(config.BLUR_KERNEL,
                                           config.BLUR_KERNEL_Y)
-    # 
-    # resize transformations
+    #
+    # リサイズ処理
     #
     elif "RESIZE" == name:
         return cv_parts.ImageResize(config.RESIZE_WIDTH, config.RESIZE_HEIGHT)
@@ -108,108 +121,103 @@ def image_transformer(name: str, config):
     elif name.startswith("CUSTOM"):
         return custom_transformer(name, config)
     else:
-        msg = f"{name} is not a valid augmentation"
+        msg = f"{name} は有効な拡張ではありません"
         logger.error(msg)
         raise ValueError(msg)
 
 
-def custom_transformer(name:str,
-                       config:Config,
-                       file_path:str=None,
-                       class_name:str=None) -> object:
-    """
-    Instantiate a custom image transformer.  A custome transformer
-    is a class whose constructor takes a Config object to get its
-    configuration and whose run() method gets an image as an argument
-    and returns a transformed image.  Like:
-    ```
-    class CustomImageTransformer:
-        def __init__(self, config:Config):
-            #
-            # save configuration in instance variables
-            #
-            self.foo = config.foo  # get configuration
+def custom_transformer(name: str,
+                       config: Config,
+                       file_path: str = None,
+                       class_name: str = None) -> object:
+    """カスタム画像変換パーツを生成する。
 
-        def run(self, image):
-            # 
-            # operate on image, then return 
-            # the transformed image.
-            #
-            return image.copy()
-    ```
+    カスタム変換パーツは ``Config`` オブジェクトをコンストラクタで受け取り、
+    ``run()`` メソッドで画像を受け取って変換後の画像を返すクラスである。
+    例::
 
-    The name of transformer will begin with "CUSTOM", like "CUSTOM_BLUR".
-    There must also be config for the module and the class to instatiate;
-    - The name of the module that leads to the python file would be 
-      the transformer name with a "_MODULE" suffix, like "CUSTOM_BLUR_MODULE".
-    - The name of the class to instantiate would be the transformer name
-      with a "_CLASS" suffix, like "CUSTOM_BLUR_CLASS"
+        class CustomImageTransformer:
+            def __init__(self, config: Config):
+                # 設定をインスタンス変数に保存する
+                self.foo = config.foo
 
-    :param name:str name of transformer
-    :param config:Config configuration
-    :param module_name:str if not None then this is name of the module;
-                           otherwise look for the module name in the config
-    :param class_name:str if not None then this is the name of the class;
-                          otherwise look for the class name in the config
-    :return:object instance of the custom transformer.  The run() method
-            must take an image and return an image.
+            def run(self, image):
+                # 画像を処理して変換結果を返す
+                return image.copy()
+
+    変換名は ``CUSTOM`` で始まり、たとえば ``CUSTOM_BLUR`` のように指定する。
+    モジュール名とクラス名は設定に記載し、モジュール名は ``_MODULE``、
+    クラス名は ``_CLASS`` というサフィックスを付けたキーで参照する。
+
+    Args:
+        name: 変換名。
+        config: ``Config`` オブジェクト。
+        file_path: モジュールのファイルパス。指定しない場合は設定から取得する。
+        class_name: クラス名。指定しない場合は設定から取得する。
+
+    Returns:
+        object: カスタム変換パーツのインスタンス。``run()`` は画像を受け取り
+        変換後の画像を返す。
+
+    Raises:
+        ValueError: モジュールまたはクラスが見つからない場合。
     """
     if file_path is None:
         file_path = getattr(config, name + "_MODULE", None)
     if file_path is None:
-        raise ValueError(f"No module file path declared for custom image transformer: {name}")
+        raise ValueError(f"カスタム画像変換器 {name} 用のモジュールファイルパスが宣言されていません")
     if class_name is None:
         class_name = getattr(config, name + "_CLASS", None)
     if class_name is None:
-        raise ValueError(f"No class declared for custom image transformer: {name}")
+        raise ValueError(f"カスタム画像変換器 {name} のクラスが宣言されていません")
     
     import os
     import sys
     import importlib.util
-    # specify the module that needs to be
-    # imported relative to the path of the
-    # module
+    # 読み込むモジュールを指定する
+    # パスを基準に相対的にインポートする
+    # モジュール
 
     #
-    # create a module name by pulling out base file name
-    # and appending to a custom namespace
+    # ベースファイル名を取り出してカスタム名前空間に
+    # 付加することでモジュール名を作成する
     #
     namespace = "custom.transformation." + os.path.split(file_path)[1].split('.')[0]
     module = sys.modules.get(namespace)
     if module:
-        # already loaded
-        logger.info(f"Found cached custom transformation module: {namespace}")
+        # 既にロード済み
+        logger.info(f"既存のカスタム変換モジュールを使用: {namespace}")
     else:
-        logger.info(f"Loading custom transformation module {namespace} at {file_path}")
+        logger.info(f"カスタム変換モジュール {namespace} を {file_path} から読み込み")
 
-        # dynamically load from python file
+        # Python ファイルから動的にロード
         spec=importlib.util.spec_from_file_location(namespace, file_path)
         if spec:
-            # creates a new module based on spec
+            # spec から新しいモジュールを作成
             module = importlib.util.module_from_spec(spec)
             if module:
-                logger.info(f"Caching custom transformation module {namespace}")
+                logger.info(f"カスタム変換モジュール {namespace} をキャッシュ")
                 sys.modules[namespace] = module
 
-                # executes the module in its own namespace
-                # when a module is imported or reloaded.
+                # モジュールを独自の名前空間で実行する
+                # モジュールがインポートまたは再読み込みされたとき
                 spec.loader.exec_module(module)
             else:
-                logger.error(f"Failed to dynamically load custom transformation module {namespace} at {file_path} from spec")
+                logger.error(f"spec からカスタム変換モジュール {namespace} を {file_path} から読み込めませんでした")
         else:
-            logger.error(f"Failed to dynamically load custom transformation spec {namespace} from {file_path}")
+            logger.error(f"{file_path} からカスタム変換モジュール {namespace} の spec を読み込めませんでした")
 
     if module:
-        # get the class from the module
+        # モジュールからクラスを取得
         my_class = getattr(module, class_name, None)
         if my_class is None:
-            raise ValueError(f"Cannot find class {class_name} in module {namespace} at {file_path}")
+            raise ValueError(f"モジュール {namespace} ({file_path}) にクラス {class_name} が見つかりません")
 
         #
-        # instantiate the an instance of the class.
-        # the __init__() must take a Config object.
+        # クラスのインスタンスを生成する
+        # ``__init__()`` は ``Config`` オブジェクトを受け取る必要がある
         #
         return my_class(config)
     else:
-        raise ValueError(f"Unable to load custom tranformation module at {file_path}")
+        raise ValueError(f"カスタム変換モジュールを {file_path} から読み込めません")
 

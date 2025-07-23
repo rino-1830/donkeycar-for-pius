@@ -5,6 +5,12 @@ import time
 import logging
 from pathlib import Path
 
+"""datastore_v2 モジュール
+===========================
+
+改良されたカタログ形式のデータストアを提供する。
+"""
+
 logger = logging.getLogger(__name__)
 
 
@@ -13,11 +19,9 @@ NEWLINE_STRIP = '\r\n'
 
 
 class Seekable(object):
-    """
-    A seekable file reader, writer which deals with newline delimited
-    records. \n
-    This reader maintains an index of line lengths, so seeking a line is a
-    O(1) operation.
+    """改行区切りのレコードを扱うシーク可能なファイルリーダー兼ライター。
+
+    行長のインデックスを保持することで任意の行へのシークを ``O(1)`` で実行できる。
     """
 
     def __init__(self, file, read_only=False, line_lengths=list()):
@@ -25,7 +29,7 @@ class Seekable(object):
         self.cumulative_lengths = list()
         self.method = 'r' if read_only else 'a+'
         self.file = open(file, self.method, newline=NEWLINE)
-        # If file is read only improve performance by memory mapping the file.
+        # ファイルが読み取り専用の場合はメモリマッピングで性能を向上させる。
         if self.method == 'r':
             self.file = mmap.mmap(self.file.fileno(), length=0,
                                   access=mmap.ACCESS_READ)
@@ -57,7 +61,7 @@ class Seekable(object):
 
     def writeline(self, contents):
         if self.method == 'r':
-            raise RuntimeError(f'Seekable {self.file} is read-only.')
+            raise RuntimeError(f'Seekable {self.file} は読み取り専用です。')
 
         has_newline = contents[-1] == NEWLINE
         if has_newline:
@@ -85,7 +89,7 @@ class Seekable(object):
 
     def readline(self):
         contents = self.file.readline()
-        # When Seekable is a memory mapped file, readline() returns a `bytes`
+        # Seekable がメモリマップされたファイルの場合、readline() は `bytes` を返す
         if isinstance(contents, bytes):
             contents = contents.decode(encoding='utf-8')
         return contents.rstrip(NEWLINE_STRIP)
@@ -139,13 +143,11 @@ class Seekable(object):
 
 
 class Catalog(object):
-    '''
-    A new line delimited file that has records delimited by newlines. \n
+    """    改行区切りのレコードを保持するファイル。
 
     [ json object record ] \n
     [ json object record ] \n
-    ...
-    '''
+    """
     def __init__(self, path, read_only=False, start_index=0):
         self.path = Path(os.path.expanduser(path))
         self.manifest = CatalogMetadata(self.path,
@@ -159,7 +161,7 @@ class Catalog(object):
         self.close()
 
     def write_record(self, record):
-        # Add record and update manifest
+        # レコードを追加しマニフェストを更新する
         contents = json.dumps(record, allow_nan=False, sort_keys=True)
         self.seekable.writeline(contents)
         line_lengths = self.seekable.line_lengths
@@ -171,9 +173,7 @@ class Catalog(object):
 
 
 class CatalogMetadata(object):
-    '''
-    Manifest for a Catalog
-    '''
+    """カタログのメタデータを管理するクラス。"""
     def __init__(self, catalog_path, read_only=False, start_index=0):
         path = Path(catalog_path)
         manifest_name = f'{path.stem}.catalog_manifest'
@@ -189,7 +189,7 @@ class CatalogMetadata(object):
                 has_contents = True
 
         if not has_contents:
-            # New catalog metadata entry
+            # 新しいカタログメタデータのエントリ
             self.contents = dict()
             self.contents['path'] = self.manifest_path.name
             created_at = time.time()
@@ -218,15 +218,14 @@ class CatalogMetadata(object):
 
 
 class Manifest(object):
-    '''
-    A newline delimited file, with the following format.
-
+    """複数のカタログを管理するマニフェスト。
+    
     [ json array of inputs ]\n
     [ json array of types ]\n
     [ json object with user metadata ]\n
     [ json object with manifest metadata ]\n
     [ json object with catalog metadata ]\n
-    '''
+    """
 
     def __init__(self, base_path, inputs=[], types=[], metadata=[],
                  max_len=1000, read_only=False):
@@ -257,7 +256,7 @@ class Manifest(object):
             self.manifest_metadata['created_at'] = created_at
             if not self.base_path.exists():
                 self.base_path.mkdir(parents=True, exist_ok=True)
-                print(f'Created a new datastore at {self.base_path.as_posix()}')
+                print(f'新しいデータストアを作成しました: {self.base_path.as_posix()}')
             self.seekeable = Seekable(self.manifest_path, read_only=self.read_only)
 
         if not has_catalogs:
@@ -266,12 +265,12 @@ class Manifest(object):
         else:
             last_known_catalog = os.path.join(self.base_path,
                                               self.catalog_paths[-1])
-            print(f'Using catalog {last_known_catalog}')
+            print(f'カタログ {last_known_catalog} を使用します')
             self.current_catalog = Catalog(last_known_catalog,
                                            read_only=self.read_only,
                                            start_index=self.current_index)
-        # Create a new session_id, which will be added to each record in the
-        # tub, when Tub.write_record() is called.
+        # 各レコードに追加される新しい session_id を生成する
+        # Tub.write_record() が呼ばれた際に使用される
         self.session_id = self.create_new_session()
 
     def write_record(self, record):
@@ -282,23 +281,22 @@ class Manifest(object):
 
         self.current_catalog.write_record(record)
         self.current_index += 1
-        # Update metadata to keep track of the last index
+        # 最後のインデックスを記録するためメタデータを更新
         self._update_catalog_metadata(update=True)
-        # Set session_id update status to True if this method is called at
-        # least once. Then session id metadata  will be updated when the
-        # session gets closed
+        # このメソッドが一度でも呼ばれたら session_id 更新フラグを立てる
+        # セッション終了時に session_id のメタデータが更新される
         if not self._updated_session:
             self._updated_session = True
 
     def delete_records(self, record_indexes):
-        # Does not actually delete the record, but marks it as deleted.
+        # 実際にはレコードを削除せず、削除済みとしてマークする
         if isinstance(record_indexes, int):
             record_indexes = {record_indexes}
         self.deleted_indexes.update(record_indexes)
         self._update_catalog_metadata(update=True)
 
     def restore_records(self, record_indexes):
-        # Does not actually delete the record, but marks it as deleted.
+        # 実際にはレコードを削除せず、削除マークを解除する
         if isinstance(record_indexes, int):
             record_indexes = {record_indexes}
         self.deleted_indexes.difference_update(record_indexes)
@@ -312,7 +310,7 @@ class Manifest(object):
         self.current_catalog = Catalog(catalog_path,
                                        start_index=self.current_index,
                                        read_only=self.read_only)
-        # Store relative paths
+        # 相対パスを保存
         self.catalog_paths.append(catalog_name)
         self._update_catalog_metadata(update=True)
         if current_catalog:
@@ -325,8 +323,8 @@ class Manifest(object):
             if len(kvs) == 2:
                 self.metadata[kvs[0]] = kvs[1]
             else:
-                logger.error(f'Metadata item needs to be a key value pair of '
-                             f'format key:value, ignore entry {kv}')
+                logger.error(
+                    f'Metadata は key:value 形式のキー・バリューの組で指定する必要があります。{kv} を無視します')
 
     def _read_contents(self):
         self.seekeable.seek_line_start(1)
@@ -334,7 +332,7 @@ class Manifest(object):
         self.types = json.loads(self.seekeable.readline())
         self.metadata = json.loads(self.seekeable.readline())
         self.manifest_metadata = json.loads(self.seekeable.readline())
-        # Catalog metadata
+        # カタログのメタデータ
         catalog_metadata = json.loads(self.seekeable.readline())
         self.catalog_paths = catalog_metadata['paths']
         self.current_index = catalog_metadata['current_index']
@@ -352,7 +350,7 @@ class Manifest(object):
     def _update_catalog_metadata(self, update=True):
         if update:
             self.seekeable.truncate_until_end(4)
-        # Catalog metadata
+        # カタログのメタデータ
         catalog_metadata = dict()
         catalog_metadata['paths'] = self.catalog_paths
         catalog_metadata['current_index'] = self.current_index
@@ -362,7 +360,11 @@ class Manifest(object):
         self.seekeable.writeline(json.dumps(catalog_metadata))
 
     def create_new_session(self):
-        """ Creates a new session id and appends it to the metadata."""
+        """新しいセッション ID を生成してメタデータへ追加する。
+
+        Returns:
+            str: 生成されたセッション ID。
+        """
         sessions = self.manifest_metadata.get('sessions', {})
         last_id = -1
         if sessions:
@@ -379,10 +381,12 @@ class Manifest(object):
         return this_full_id
 
     def close(self):
-        """ Closing tub closes open files for catalog, catalog manifest and
-            manifest.json"""
-        # If records were received, write updated session_id dictionary into
-        # the metadata, otherwise keep the session_id information unchanged
+        """カタログ・マニフェスト・manifest.json のファイルを閉じる。
+
+        レコードが存在した場合は更新された session_id を manifest.json に書き戻す。
+        """
+        # レコードがあった場合は session_id の辞書を更新してメタデータへ書き込む
+        # レコードが無い場合は session_id 情報を変更しない
         if self._updated_session:
             self.seekeable.update_line(4, json.dumps(self.manifest_metadata))
         self.current_catalog.close()
@@ -392,15 +396,14 @@ class Manifest(object):
         return ManifestIterator(self)
 
     def __len__(self):
-        # current_index is already pointing to the next index
+        # current_index は既に次のインデックスを指している
         return self.current_index - len(self.deleted_indexes)
 
 
 class ManifestIterator(object):
-    """
-    An iterator for the Manifest type. \n
+    """Manifest 用のイテレータ。
 
-    Returns catalog entries lazily when a consumer calls __next__().
+    ``__next__()`` が呼ばれたときにカタログエントリを遅延して返す。
     """
     def __init__(self, manifest):
         self.manifest = manifest
@@ -412,10 +415,10 @@ class ManifestIterator(object):
     def __next__(self):
         while True:
             if not self.has_catalogs:
-                raise StopIteration('No catalogs')
+                raise StopIteration('カタログがありません')
 
             if self.current_catalog_index >= len(self.manifest.catalog_paths):
-                raise StopIteration('No more catalogs')
+                raise StopIteration('これ以上のカタログはありません')
 
             if self.current_catalog is None:
                 current_catalog_path = os.path.join(
@@ -427,19 +430,19 @@ class ManifestIterator(object):
 
             contents = self.current_catalog.seekable.readline()
             if contents is not None and len(contents) > 0:
-                # Check for current_index when we are ready to advance the
-                # underlying iterator.
+                # 先に進める準備ができたときに current_index を確認する
+                # 下層のイテレータを進めるための処理
                 current_index = self.current_index
                 self.current_index += 1
                 if current_index in self.manifest.deleted_indexes:
-                    # Skip over index, because it has been marked deleted
+                    # 削除マークされているインデックスはスキップ
                     continue
                 else:
                     try:
                         record = json.loads(contents)
                         return record
                     except Exception:
-                        print(f'Ignoring record at index {current_index}')
+                        print(f'インデックス {current_index} のレコードを無視します')
                         continue
             else:
                 self.current_catalog = None

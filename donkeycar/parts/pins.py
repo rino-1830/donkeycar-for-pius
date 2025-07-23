@@ -1,29 +1,22 @@
-"""
-pins.py - high level ttl an pwm pin abstraction.
-This is designed to allow drivers that use ttl and pwm
-pins to be reusable with different underlying libaries
-and techologies.
+"""pins.py - TTL と PWM ピンの高レベル抽象化。
 
-The abstract classes InputPin, OutputPin and PwmPin
-provide an interface for starting, using and cleaning up the pins.
-The factory functions input_pin_by_id(), output_pin_by_id()
-and pwm_pin_by_id() construct pins given a string id
-that specifies the underlying pin provider and it's attributes.
-There are implementations for the Rpi.GPIO library and
-for the PCA9685.
+TTL や PWM ピンを利用するドライバーを、異なるライブラリや技術でも再利用できるようにする。
 
-Pin id allows pins to be selected using a single string to
-select from different underlying providers, numbering schemes and settings.
+抽象クラス `InputPin`、`OutputPin`、`PwmPin` は、ピンの開始・使用・後始末のインターフェースを提供する。
+ファクトリー関数 `input_pin_by_id()`、`output_pin_by_id()`、`pwm_pin_by_id()` は、
+ピン提供元や属性を表す文字列 ID からピンを生成する。
+`Rpi.GPIO` ライブラリと `PCA9685` の実装が用意されている。
 
-Use Rpi.GPIO library, GPIO.BOARD pin numbering scheme, pin number 13
+ピン ID を使うことで、異なる提供元・番号方式・設定を 1 つの文字列で指定できる。
+
+Rpi.GPIO ライブラリの ``GPIO.BOARD`` 番号方式でピン番号 13 を使用する例::
  pin = input_pin_by_id("RPI_GPIO.BOARD.13")
 
-Use Rpi.GPIO library, GPIO.BCM broadcom pin numbering scheme, gpio pin number 33
+Rpi.GPIO ライブラリの ``GPIO.BCM`` 方式で GPIO 番号 33 を使用する例::
  pin = output_pin_by_id("RPI_GPIO.BCM.33")
 
-Use PCA9685 on bus 0 at address 0x40, channel 7
+バス 0、アドレス ``0x40`` の PCA9685 でチャネル 7 を使用する例::
  pin = pwm_pin_by_id("PCA9685.0:40.7")
-
 """
 from abc import ABC, abstractmethod
 from typing import Any, Callable
@@ -58,13 +51,13 @@ class PinProvider:
 
 
 class PinScheme:
-    BOARD = "BOARD"  # board numbering
-    BCM = "BCM"      # broadcom gpio numbering
+    BOARD = "BOARD"  # 基板番号方式
+    BCM = "BCM"      # Broadcom GPIO 番号方式
 
 
 #
-# #### Base interface for input/output/pwm pins
-# #### Implementations derive from these abstact classes
+# #### 入出力および PWM ピンの基本インターフェース
+# #### 実装はこれらの抽象クラスを継承する
 #
 
 class InputPin(ABC):
@@ -74,40 +67,42 @@ class InputPin(ABC):
 
     @abstractmethod
     def start(self, on_input=None, edge: int = PinEdge.RISING) -> None:
+        """ピンを入力モードで開始する。
+
+        Args:
+            on_input: 立ち上がり/立ち下がり検出時に呼び出す無引数関数。無視する場合は ``None``。
+            edge: ``on_input`` を呼ぶエッジ種別。既定は :class:`PinEdge.RISING`。
+
+        Raises:
+            RuntimeError: すでに開始されている場合。
+
+        その他の状態は :func:`state` を呼び、``PinState.NOT_STARTED`` かどうかで確認できる。
         """
-        Start the pin in input mode.
-        :param on_input: no-arg function to call when an edge is detected, or None to ignore
-        :param edge: type of edge(s) that trigger on_input; default is PinEdge.RISING
-        This raises a RuntimeError if the pin is already started.
-        You can check to see if the pin is started by calling
-        state() and checking for PinState.NOT_STARTED
-        """
-        pass  # subclasses should override this
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def stop(self) -> None:
-        """
-        Stop the pin and return it to PinState.NOT_STARTED
-        """
-        pass  # subclasses should override this
+        """ピンを停止し ``PinState.NOT_STARTED`` に戻す。"""
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def state(self) -> int:
+        """最後に読み取った入力状態を返す。
+
+        ピンを再度読み取るわけではなく、:meth:`input` が返した最後の値を返す。
+        ピンが開始されていない、または停止している場合は ``PinState.NOT_STARTED`` を返す。
         """
-        Return most recent input state.  This does not re-read the input pin,
-        it just returns that last value read by the input() method.
-        If the pin is not started or has been stopped,
-        this will return PinState:NOT_STARTED
-        """
-        return PinState.NOT_STARTED  # subclasses must override
+        return PinState.NOT_STARTED  # サブクラスで実装すること
 
     @abstractmethod
     def input(self) -> int:
+        """ピンの入力状態を読み取る。
+
+        Returns:
+            int: ``PinState.LOW`` または ``PinState.HIGH``。開始していない場合は
+            ``PinState.NOT_STARTED`` を返す。
         """
-        Read the input state from the pin.
-        :return: PinState.LOW/HIGH or PinState.NOT_STARTED if pin not started
-        """
-        return PinState.NOT_STARTED  # subclasses must override
+        return PinState.NOT_STARTED  # サブクラスで実装すること
 
 
 class OutputPin(ABC):
@@ -117,40 +112,46 @@ class OutputPin(ABC):
 
     @abstractmethod
     def start(self, state: int = PinState.LOW) -> None:
+        """出力モードでピンを開始し、初期状態を設定する。
+
+        Args:
+            state: 開始時の :class:`PinState`。
+
+        Raises:
+            RuntimeError: すでに開始されている場合。
+
+        :func:`state` を呼び ``PinState.NOT_STARTED`` かどうかで開始済みか確認できる。
         """
-        Start the pin in output mode and with given starting state.
-        This raises and RuntimeError if the pin is already started.
-        You can check to see if the pin is started by calling
-        state() and checking for PinState.NOT_STARTED
-        """
-        pass  # subclasses should override this
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def stop(self) -> None:
-        """
-        Stop the pin and return it to PinState.NOT_STARTED
-        """
-        pass  # subclasses should override this
+        """ピンを停止して ``PinState.NOT_STARTED`` に戻す。"""
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def state(self) -> int:
+        """最後に設定した出力状態を返す。
+
+        ピンを再度読み取ることはせず、:meth:`output` で設定した最後の値を返す。
+        ピンが開始されていない、または停止している場合 ``PinState.NOT_STARTED`` を返す。
+
+        Returns:
+            int: 現在の出力状態、または未開始なら ``PinState.NOT_STARTED``。
         """
-        Return most recent output state.  This does not re-read the pin,
-        It just returns that last value set by the output() method.
-        If the pin is not started or has been stopped,
-        this will return PinState:NOT_STARTED
-        :return: most recent output state OR PinState.NOT_STARTED if pin not started.
-        """
-        return PinState.NOT_STARTED  # subclasses must override
+        return PinState.NOT_STARTED  # サブクラスで実装すること
 
     @abstractmethod
     def output(self, state: int) -> None:
+        """ピンの出力状態を設定する。
+
+        Args:
+            state: ``PinState.LOW`` か ``PinState.HIGH``。
+
+        Raises:
+            RuntimeError: ピンが開始されていない場合。
         """
-        Set the output state of the pin to either
-        :param state: PinState.LOW or PinState.HIGH
-        :except: RuntimeError if pin not stated.
-        """
-        pass  # subclasses must override
+        pass  # サブクラスで実装すること
 
 
 class PwmPin(ABC):
@@ -160,68 +161,74 @@ class PwmPin(ABC):
 
     @abstractmethod
     def start(self, duty: float = 0) -> None:
+        """出力モードでピンを開始し、指定したデューティ比で動作させる。
+
+        Args:
+            duty: 0〜1 の範囲で指定するデューティ比。
+
+        Raises:
+            RuntimeError: すでに開始されている場合。
+
+        開始済みかどうかは :func:`state` を呼び ``PinState.NOT_STARTED`` か確認する。
         """
-        Start the pin in output mode and with given starting state.
-        This raises and RuntimeError if the pin is already started.
-        You can check to see if the pin is started by calling
-        state() and checking for PinState.NOT_STARTED
-        :param duty: duty cycle in range 0 to 1
-        """
-        pass  # subclasses should override this
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def stop(self) -> None:
-        """
-        Stop the pin and return it to PinState.NOT_STARTED
-        """
-        pass  # subclasses should override this
+        """ピンを停止し ``PinState.NOT_STARTED`` に戻す。"""
+        pass  # サブクラスで実装すること
 
     @abstractmethod
     def state(self) -> float:
+        """最後に設定した出力 duty を返す。
+
+        ピンを再度読み取らず、:meth:`duty_cycle` で設定した値をそのまま返す。
+        ピンが開始されていない、または停止している場合は ``PinState.NOT_STARTED`` を返す。
+
+        Returns:
+            float: 現在の duty。未開始なら ``PinState.NOT_STARTED``。
         """
-        Return most recent output state.  This does not re-read the pin,
-        It just returns that last value set by the output() method.
-        If the pin is not started or has been stopped,
-        this will return PinState:NOT_STARTED
-        :return: most recent output duty_cycle
-        """
-        return PinState.NOT_STARTED  # subclasses must override
+        return PinState.NOT_STARTED  # サブクラスで実装すること
 
     @abstractmethod
     def duty_cycle(self, duty: float) -> None:
+        """出力 duty を設定する。
+
+        Args:
+            duty: 0〜1 の範囲の duty (0%〜100%)。
+
+        Raises:
+            RuntimeError: ピンが開始されていない場合。
         """
-        Set the output duty cycle of the pin
-        in range 0 to 1.0 (0% to 100%)
-        :param duty: duty cycle in range 0 to 1
-        :except: RuntimeError is pin is not started
-        """
-        pass  # subclasses must override
+        pass  # サブクラスで実装すること
 
 
 #
-# ####### Factory Methods
+# ####### ファクトリーメソッド
 #
 
-
 #
-# Pin id allows pins to be selected using a single string to
-# select from different underlying providers, numbering schemes and settings.
+# ピン ID を使うことで、異なるピンプロバイダーや番号体系、設定を
+# 1 つの文字列で選択できる。
 #
-# Use Rpi.GPIO library, GPIO.BOARD pin numbering scheme, pin number 13
+# Rpi.GPIO ライブラリの GPIO.BOARD 番号方式でピン番号 13 を使う例
 # "RPI_GPIO.BOARD.13"
 #
-# Use Rpi.GPIO library, GPIO.BCM broadcom pin numbering scheme, gpio pin number 33
+# Rpi.GPIO ライブラリの GPIO.BCM 方式で GPIO 番号 33 を使う例
 # "RPI_GPIO.BCM.33"
 #
-# Use PCA9685 on bus 0 at address 0x40, channel 7
+# バス 0、アドレス 0x40 の PCA9685 でチャネル 7 を使う例
 # "PCA9685.0:40.7"
 #
 def output_pin_by_id(pin_id: str, frequency_hz: int = 60) -> OutputPin:
-    """
-    Select a ttl output pin given a pin id.
-    :param pin_id: pin specifier string
-    :param frequency_hz: duty cycle frequency in hertz (only necessary for PCA9685)
-    :return: OutputPin
+    """ピン ID から TTL 出力ピンを取得する。
+
+    Args:
+        pin_id: ピンを指定する文字列 ID。
+        frequency_hz: PCA9685 用の周波数 (Hz)。
+
+    Returns:
+        OutputPin: 構築された出力ピン。
     """
     parts = pin_id.split(".")
     if parts[0] == PinProvider.PCA9685:
@@ -242,19 +249,22 @@ def output_pin_by_id(pin_id: str, frequency_hz: int = 60) -> OutputPin:
     if parts[0] == PinProvider.PIGPIO:
         pin_provider = parts[0]
         if PinScheme.BCM != parts[1]:
-            raise ValueError("Pin scheme must be BCM for PIGPIO")
+            raise ValueError("PIGPIO ではピン方式は BCM でなければなりません")
         pin_number = int(parts[2])
         return output_pin(pin_provider, pin_number, pin_scheme=PinScheme.BCM)
 
-    raise ValueError(f"Unknown pin provider {parts[0]}")
+    raise ValueError(f"不明なピンプロバイダー {parts[0]}")
 
 
 def pwm_pin_by_id(pin_id: str, frequency_hz: int = 60) -> PwmPin:
-    """
-    Select a pwm output pin given a pin id.
-    :param pin_id: pin specifier string
-    :param frequency_hz: duty cycle frequency in hertz
-    :return: PwmPin
+    """ピン ID から PWM 出力ピンを取得する。
+
+    Args:
+        pin_id: ピンを指定する文字列 ID。
+        frequency_hz: デューティ周波数 (Hz)。
+
+    Returns:
+        PwmPin: 構築された PWM ピン。
     """
     parts = pin_id.split(".")
     if parts[0] == PinProvider.PCA9685:
@@ -274,20 +284,18 @@ def pwm_pin_by_id(pin_id: str, frequency_hz: int = 60) -> PwmPin:
     if parts[0] == PinProvider.PIGPIO:
         pin_provider = parts[0]
         if PinScheme.BCM != parts[1]:
-            raise ValueError("Pin scheme must be BCM for PIGPIO")
+            raise ValueError("PIGPIO ではピン方式は BCM でなければなりません")
         pin_number = int(parts[2])
         return pwm_pin(pin_provider, pin_number, pin_scheme=PinScheme.BCM, frequency_hz=frequency_hz)
 
-    raise ValueError(f"Unknown pin provider {parts[0]}")
+    raise ValueError(f"不明なピンプロバイダー {parts[0]}")
 
 
 def input_pin_by_id(pin_id: str, pull: int = PinPull.PULL_NONE) -> InputPin:
-    """
-    Select a ttl input pin given a pin id.
-    """
+    """ピン ID から TTL 入力ピンを取得する。"""
     parts = pin_id.split(".")
     if parts[0] == PinProvider.PCA9685:
-        raise RuntimeError("PinProvider.PCA9685 does not implement InputPin")
+        raise RuntimeError("PinProvider.PCA9685 は InputPin を実装していません")
 
     if parts[0] == PinProvider.RPI_GPIO:
         pin_provider = parts[0]
@@ -302,7 +310,7 @@ def input_pin_by_id(pin_id: str, pull: int = PinPull.PULL_NONE) -> InputPin:
         pin_number = int(parts[2])
         return input_pin(pin_provider, pin_number, pin_scheme=PinScheme.BCM, pull=pull)
 
-    raise ValueError(f"Unknown pin provider {parts[0]}")
+    raise ValueError(f"不明なピンプロバイダー {parts[0]}")
 
 
 def input_pin(
@@ -310,25 +318,31 @@ def input_pin(
         pin_number: int,
         pin_scheme: str = PinScheme.BOARD,
         pull: int = PinPull.PULL_NONE) -> InputPin:
-    """
-    construct an InputPin using the given pin provider.
-    Note that PCA9685 can NOT provide an InputPin.
-    :param pin_provider: PinProvider string
-    :param pin_number: zero based pin number
-    :param pin_scheme: PinScheme string
-    :param pull: PinPull value
-    :return: InputPin
-    :except: RuntimeError if pin_provider is not valid.
+    """指定されたピンプロバイダーから :class:`InputPin` を構築する。
+
+    PCA9685 は入力ピンを提供できない点に注意。
+
+    Args:
+        pin_provider: :class:`PinProvider` の文字列。
+        pin_number: 0 から始まるピン番号。
+        pin_scheme: :class:`PinScheme` の文字列。
+        pull: :class:`PinPull` の値。
+
+    Returns:
+        InputPin: 構築された入力ピン。
+
+    Raises:
+        RuntimeError: 無効な ``pin_provider`` の場合。
     """
     if pin_provider == PinProvider.RPI_GPIO:
         return InputPinGpio(pin_number, pin_scheme, pull)
     if pin_provider == PinProvider.PCA9685:
-        raise RuntimeError("PinProvider.PCA9685 does not implement InputPin")
+        raise RuntimeError("PinProvider.PCA9685 は InputPin を実装していません")
     if pin_provider == PinProvider.PIGPIO:
         if pin_scheme != PinScheme.BCM:
-            raise ValueError("Pin scheme must be PinScheme.BCM for PIGPIO")
+            raise ValueError("PIGPIO では PinScheme.BCM を使用する必要があります")
         return InputPinPigpio(pin_number, pull)
-    raise RuntimeError(f"UnknownPinProvider ({pin_provider})")
+    raise RuntimeError(f"未知の PinProvider ({pin_provider})")
 
 
 def output_pin(
@@ -338,17 +352,23 @@ def output_pin(
         i2c_bus: int = 0,
         i2c_address: int = 40,
         frequency_hz: int = 60) -> OutputPin:
-    """
-    construct an OutputPin using the given pin provider
-    Note that PCA9685 can NOT provide an InputPin.
-    :param pin_provider: PinProvider string
-    :param pin_number: zero based pin number
-    :param pin_scheme: PinScheme string
-    :param i2c_bus: I2C bus number for I2C devices
-    :param i2c_address: I2C address for I2C devices
-    :param frequency_hz: duty cycle frequence in hertz (for PCA9685)
-    :return: InputPin
-    :except: RuntimeError if pin_provider is not valid.
+    """指定されたプロバイダーから :class:`OutputPin` を構築する。
+
+    PCA9685 は入力ピンを提供できない点に注意。
+
+    Args:
+        pin_provider: :class:`PinProvider` の文字列。
+        pin_number: 0 から始まるピン番号。
+        pin_scheme: :class:`PinScheme` の文字列。
+        i2c_bus: I2C デバイスのバス番号。
+        i2c_address: I2C デバイスのアドレス。
+        frequency_hz: PCA9685 用の周波数 (Hz)。
+
+    Returns:
+        InputPin: 構築された出力ピン。
+
+    Raises:
+        RuntimeError: ``pin_provider`` が無効な場合。
     """
     if pin_provider == PinProvider.RPI_GPIO:
         return OutputPinGpio(pin_number, pin_scheme)
@@ -356,9 +376,9 @@ def output_pin(
         return OutputPinPCA9685(pin_number, pca9685(i2c_bus, i2c_address, frequency_hz))
     if pin_provider == PinProvider.PIGPIO:
         if pin_scheme != PinScheme.BCM:
-            raise ValueError("Pin scheme must be PinScheme.BCM for PIGPIO")
+            raise ValueError("PIGPIO では PinScheme.BCM を使用する必要があります")
         return OutputPinPigpio(pin_number)
-    raise RuntimeError(f"UnknownPinProvider ({pin_provider})")
+    raise RuntimeError(f"未知の PinProvider ({pin_provider})")
 
 
 def pwm_pin(
@@ -368,16 +388,21 @@ def pwm_pin(
         frequency_hz: int = 60,
         i2c_bus: int = 0,
         i2c_address: int = 40) -> PwmPin:
-    """
-    construct a PwmPin using the given pin provider
-    :param pin_provider: PinProvider string
-    :param pin_number: zero based pin number
-    :param pin_scheme: PinScheme string
-    :param i2c_bus: I2C bus number for I2C devices
-    :param i2c_address: I2C address for I2C devices
-    :param frequency_hz: duty cycle frequence in hertz
-    :return: PwmPin
-    :except: RuntimeError if pin_provider is not valid.
+    """指定されたプロバイダーから :class:`PwmPin` を構築する。
+
+    Args:
+        pin_provider: :class:`PinProvider` の文字列。
+        pin_number: 0 から始まるピン番号。
+        pin_scheme: :class:`PinScheme` の文字列。
+        frequency_hz: デューティ周波数 (Hz)。
+        i2c_bus: I2C デバイスのバス番号。
+        i2c_address: I2C デバイスのアドレス。
+
+    Returns:
+        PwmPin: 構築された PWM ピン。
+
+    Raises:
+        RuntimeError: ``pin_provider`` が無効な場合。
     """
     if pin_provider == PinProvider.RPI_GPIO:
         return PwmPinGpio(pin_number, pin_scheme, frequency_hz)
@@ -385,37 +410,40 @@ def pwm_pin(
         return PwmPinPCA9685(pin_number, pca9685(i2c_bus, i2c_address, frequency_hz))
     if pin_provider == PinProvider.PIGPIO:
         if pin_scheme != PinScheme.BCM:
-            raise ValueError("Pin scheme must be PinScheme.BCM for PIGPIO")
+            raise ValueError("PIGPIO では PinScheme.BCM を使用する必要があります")
         return PwmPinPigpio(pin_number, frequency_hz)
-    raise RuntimeError(f"UnknownPinProvider ({pin_provider})")
+    raise RuntimeError(f"未知の PinProvider ({pin_provider})")
 
 
 #
-# ----- RPi.GPIO/Jetson.GPIO implementations -----
+# ----- RPi.GPIO/Jetson.GPIO 実装 -----
 #
 try:
     import RPi.GPIO as GPIO
-    # lookups to convert abstact api to GPIO values
+    # 抽象 API を GPIO 定数に変換するためのテーブル
     gpio_pin_edge = [None, GPIO.RISING, GPIO.FALLING, GPIO.BOTH]
     gpio_pin_pull = [None, GPIO.PUD_OFF, GPIO.PUD_DOWN, GPIO.PUD_UP]
     gpio_pin_scheme = {PinScheme.BOARD: GPIO.BOARD, PinScheme.BCM: GPIO.BCM}
 except ImportError:
-    logger.warn("RPi.GPIO was not imported.")
+    logger.warn("RPi.GPIO をインポートできませんでした。")
     globals()["GPIO"] = None
 
 
 def gpio_fn(pin_scheme:int, fn:Callable[[], Any]):
-    """
-    Convenience method to enforce the desired GPIO pin scheme
-    before calling a GPIO function.
-    RPi.GPIO allows only a single scheme to be set at runtime.
-    If the pin scheme is already set to a different scheme, then
-    this will raise a RuntimeError to prevent erroneous pin outputs.
+    """GPIO 関数呼び出し前にピン方式を設定するための便利関数。
 
-    :param pin_scheme:int GPIO.BOARD or GPIO.BCM
-    :param fn:Callable[[], Any] no-arg function to call after setting pin scheme.
-    :return:any return value from called function
-    :exception:RuntimeError if pin scheme is already set to a different scheme.
+    RPi.GPIO は実行中に 1 つの方式しか設定できない。既に異なる方式が設定され
+    ている場合は ``RuntimeError`` を送出して誤った出力を防止する。
+
+    Args:
+        pin_scheme: ``GPIO.BOARD`` か ``GPIO.BCM``。
+        fn: ピン方式設定後に呼び出す無引数関数。
+
+    Returns:
+        Any: ``fn`` の戻り値。
+
+    Raises:
+        RuntimeError: 既に別の方式が設定されている場合。
     """
     prev_scheme = GPIO.getmode()
     if prev_scheme is None:
@@ -429,11 +457,7 @@ def gpio_fn(pin_scheme:int, fn:Callable[[], Any]):
 
 class InputPinGpio(InputPin):
     def __init__(self, pin_number: int, pin_scheme: str, pull: int = PinPull.PULL_NONE) -> None:
-        """
-        Input pin ttl HIGH/LOW using RPi.GPIO/Jetson.GPIO
-        :param pin_number: GPIO.BOARD mode point number
-        :param pull: enable a pull up or down resistor on pin.  Default is PinPull.PULL_NONE
-        """
+        """RPi.GPIO/Jetson.GPIO を用いた TTL 入力ピン。"""
         self.pin_number = pin_number
         self.pin_scheme = gpio_pin_scheme[pin_scheme]
         self.pin_scheme_str = pin_scheme
@@ -447,14 +471,19 @@ class InputPinGpio(InputPin):
             self.on_input()
 
     def start(self, on_input=None, edge=PinEdge.RISING) -> None:
-        """
-        :param on_input: no-arg function to call when an edge is detected, or None to ignore
-        :param edge: type of edge(s) that trigger on_input; default is
+        """入力ピンを開始し、必要ならコールバックを登録する。
+
+        Args:
+            on_input: エッジ検出時に呼び出す無引数関数。無視する場合 ``None``。
+            edge: ``on_input`` を呼び出すエッジ種別。既定は :class:`PinEdge.RISING`。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start InputPinGpio({self.pin_number}) that is already started.")
+            raise RuntimeError(f"InputPinGpio({self.pin_number}) は既に開始されています")
 
-        # stop the pin so it is not in use, then start it
+        # ピンが使用中でないことを確認してから開始する
         gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
         gpio_fn(self.pin_scheme, lambda: GPIO.setup(self.pin_number, GPIO.IN, pull_up_down=gpio_pin_pull[self.pull]))
         if on_input is not None:
@@ -462,15 +491,15 @@ class InputPinGpio(InputPin):
             gpio_fn(
                 self.pin_scheme,
                 lambda: GPIO.add_event_detect(self.pin_number, gpio_pin_edge[edge], callback=self._callback))
-        self.input()  # read first state
-        logger.info(f"InputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' started.")
+        self.input()  # 初回状態を取得
+        logger.info(f"InputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を開始しました")
 
     def stop(self) -> None:
         if self.state() != PinState.NOT_STARTED:
             self.on_input = None
             gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
             self._state = PinState.NOT_STARTED
-            logger.info(f"InputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' stopped.")
+            logger.info(f"InputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を停止しました")
 
     def state(self) -> int:
         return self._state
@@ -481,9 +510,7 @@ class InputPinGpio(InputPin):
 
 
 class OutputPinGpio(OutputPin):
-    """
-    Output pin ttl HIGH/LOW using Rpi.GPIO/Jetson.GPIO
-    """
+    """Rpi.GPIO/Jetson.GPIO を用いた TTL 出力ピン。"""
     def __init__(self, pin_number: int, pin_scheme: str) -> None:
         self.pin_number = pin_number
         self.pin_scheme_str = pin_scheme
@@ -492,18 +519,18 @@ class OutputPinGpio(OutputPin):
 
     def start(self, state: int = PinState.LOW) -> None:
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start OutputPinGpio({self.pin_number}) that is already started.")
-        # first stop the pin so we know it is not in use, then start it.
+            raise RuntimeError(f"OutputPinGpio({self.pin_number}) は既に開始されています")
+        # ピンを一旦停止して使用中でないことを確認してから開始する
         gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
         gpio_fn(self.pin_scheme, lambda: GPIO.setup(self.pin_number, GPIO.OUT))
         self.output(state)
-        logger.info(f"OutputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' started.")
+        logger.info(f"OutputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を開始しました")
 
     def stop(self) -> None:
         if self.state() != PinState.NOT_STARTED:
             gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
             self._state = PinState.NOT_STARTED
-            logger.info(f"OutputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' stopped.")
+            logger.info(f"OutputPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を停止しました")
 
     def state(self) -> int:
         return self._state
@@ -514,9 +541,7 @@ class OutputPinGpio(OutputPin):
 
 
 class PwmPinGpio(PwmPin):
-    """
-    PWM output pin using Rpi.GPIO/Jetson.GPIO
-    """
+    """Rpi.GPIO/Jetson.GPIO を用いた PWM 出力ピン。"""
     def __init__(self, pin_number: int, pin_scheme: str, frequency_hz: float = 50) -> None:
         self.pin_number = pin_number
         self.pin_scheme_str = pin_scheme
@@ -527,23 +552,23 @@ class PwmPinGpio(PwmPin):
 
     def start(self, duty: float = 0) -> None:
         if self.pwm is not None:
-            raise RuntimeError("Attempt to start PwmPinGpio that is already started.")
+            raise RuntimeError("PwmPinGpio は既に開始されています")
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
 
-        # stop the pin so we know it is not in use, then start it
+        # ピンが使用中でないことを確認してから開始する
         gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
         gpio_fn(self.pin_scheme, lambda: GPIO.setup(self.pin_number, GPIO.OUT))
         self.pwm = gpio_fn(self.pin_scheme, lambda: GPIO.PWM(self.pin_number, self.frequency))
-        self.pwm.start(duty * 100)  # takes duty in range 0 to 100
+        self.pwm.start(duty * 100)  # duty は 0〜100 の範囲で指定
         self._state = duty
-        logger.info(f"PwmPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' started.")
+        logger.info(f"PwmPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を開始しました")
 
     def stop(self) -> None:
         if self.pwm is not None:
             self.pwm.stop()
             gpio_fn(self.pin_scheme, lambda: GPIO.cleanup(self.pin_number))
-            logger.info(f"PwmPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' stopped.")
+            logger.info(f"PwmPin 'RPI_GPIO.{self.pin_scheme_str}.{self.pin_number}' を停止しました")
         self._state = PinState.NOT_STARTED
 
 
@@ -552,13 +577,13 @@ class PwmPinGpio(PwmPin):
 
     def duty_cycle(self, duty: float) -> None:
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
-        self.pwm.ChangeDutyCycle(duty * 100)  # takes duty of 0 to 100
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
+        self.pwm.ChangeDutyCycle(duty * 100)  # duty は 0〜100 の範囲
         self._state = duty
 
 
 #
-# ----- PCA9685 implementations -----
+# ----- PCA9685 実装 -----
 #
 class PCA9685:
     '''
@@ -593,41 +618,43 @@ class PCA9685:
 
     def set_duty_cycle(self, channel: int, duty_cycle: float):
         if duty_cycle < 0 or duty_cycle > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
         if duty_cycle == 1:
             self.set_high(channel)
         elif duty_cycle == 0:
             self.set_low(channel)
         else:
-            # duty cycle is fraction of the 12 bits
+            # デューティ比を 12bit スケールに変換
             pulse = int(4096 * duty_cycle)
             try:
                 self.pwm.set_pwm(channel, 0, pulse)
             except Exception as e:
-                logger.error(f'Error on PCA9685 channel {channel}: {str(e)}')
+                logger.error(f'PCA9685 チャンネル {channel} でエラー: {str(e)}')
 
 
 #
-# lookup map for PCA9685 singletons
-# key is "busnum:address"
+# PCA9685 のシングルトンを保持するマップ
+# キーは "busnum:address"
 #
 _pca9685 = {}
 
 
 def pca9685(busnum: int, address: int, frequency: int = 60):
-    """
-    pca9685 factory allocates driver for pca9685
-    at given bus number and i2c address.
-    If we have already created one for that bus/addr
-    pair then use that singleton.  If frequency is
-    not the same, then error.
-    :param busnum: I2C bus number of PCA9685
-    :param address: address of PCA9685 on I2C bus
-    :param frequency: frequency in hertz of duty cycle
-    :except: PCA9685 has a single frequency for all channels,
-             so attempts to allocate a controller at a
-             given bus number and address with different
-             frequencies will raise a ValueError
+    """PCA9685 ドライバーを取得するファクトリー関数。
+
+    同じバス番号とアドレスの組み合わせではシングルトンを再利用する。
+    異なる周波数で要求された場合は ``ValueError`` を送出する。
+
+    Args:
+        busnum: PCA9685 の I2C バス番号。
+        address: PCA9685 の I2C アドレス。
+        frequency: デューティ周波数 (Hz)。
+
+    Raises:
+        ValueError: 既存のコントローラーと周波数が異なる場合。
+
+    Returns:
+        PCA9685: 構築または再利用されたドライバー。
     """
     key = str(busnum) + ":" + hex(address)
     pca = _pca9685.get(key)
@@ -641,26 +668,24 @@ def pca9685(busnum: int, address: int, frequency: int = 60):
 
 
 class OutputPinPCA9685(ABC):
-    """
-    Output pin ttl HIGH/LOW using PCA9685
-    """
+    """PCA9685 を使用した TTL 出力ピン。"""
     def __init__(self, pin_number: int, pca9685: PCA9685) -> None:
         self.pin_number = pin_number
         self.pca9685 = pca9685
         self._state = PinState.NOT_STARTED
 
     def start(self, state: int = PinState.LOW) -> None:
-        """
-        Start the pin in output mode.
-        This raises a RuntimeError if the pin is already started.
-        You can check to see if the pin is started by calling
-        state() and checking for PinState.NOT_STARTED
-        :param state: PinState to start with
-        :except: RuntimeError if pin is already started.
+        """出力モードでピンを開始する。
+
+        Args:
+            state: 開始時の :class:`PinState`。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start pin ({self.pin_number}) that is already started")
-        self._state = 0  # hack to allow first output to work
+            raise RuntimeError(f"pin({self.pin_number}) は既に開始されています")
+        self._state = 0  # 初回出力を可能にするための暫定値
         self.output(state)
 
     def stop(self) -> None:
@@ -672,21 +697,24 @@ class OutputPinPCA9685(ABC):
             self._state = PinState.NOT_STARTED
 
     def state(self) -> int:
-        """
-        Return most recent output state.
-        If the pin is not started or has been stopped,
-        this will return PinState:NOT_STARTED
-        :return: PinState
+        """最後に設定した出力状態を返す。
+
+        ピンが開始されていない、または停止している場合は
+        ``PinState.NOT_STARTED`` を返す。
+
+        Returns:
+            int: 現在の出力状態。
         """
         return self._state
 
     def output(self, state: int) -> None:
-        """
-        Write output state to the pin.
-        :param state: PinState.LOW or PinState.HIGH
+        """出力状態を書き込む。
+
+        Args:
+            state: ``PinState.LOW`` または ``PinState.HIGH``。
         """
         if self.state() == PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to use pin ({self.pin_number}) that is not started")
+            raise RuntimeError(f"pin({self.pin_number}) は開始されていません")
         if state == PinState.HIGH:
             self.pca9685.set_high(self.pin_number)
         else:
@@ -695,25 +723,26 @@ class OutputPinPCA9685(ABC):
 
 
 class PwmPinPCA9685(PwmPin):
-    """
-    PWM output pin using PCA9685
-    """
+    """PCA9685 を使用した PWM 出力ピン。"""
     def __init__(self, pin_number: int, pca9685: PCA9685) -> None:
         self.pin_number = pin_number
         self.pca9685 = pca9685
         self._state = PinState.NOT_STARTED
 
     def start(self, duty: float = 0) -> None:
-        """
-        Start pin with given duty cycle
-        :param duty: duty cycle in range 0 to 1
-        :except: RuntimeError if pin is already started.
+        """指定した duty でピンを開始する。
+
+        Args:
+            duty: 0〜1 の範囲で指定する duty。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start pin ({self.pin_number}) that is already started")
+            raise RuntimeError(f"pin({self.pin_number}) は既に開始されています")
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
-        self._state = 0  # hack to allow first duty_cycle to work
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
+        self._state = 0  # 初回の duty_cycle 設定を可能にするための暫定値
         self.duty_cycle(duty)
         self._state = duty
 
@@ -723,48 +752,47 @@ class PwmPinPCA9685(PwmPin):
             self._state = PinState.NOT_STARTED
 
     def state(self) -> float:
-        """
-        This returns the last set duty cycle.
-        :return: duty cycle in range 0 to 1 OR PinState.NOT_STARTED in not started
+        """最後に設定した duty を返す。
+
+        Returns:
+            float: duty (0〜1) または ``PinState.NOT_STARTED``。
         """
         return self._state
 
     def duty_cycle(self, duty: float) -> None:
-        """
-        Write a duty cycle to the output pin
-        :param duty: duty cycle in range 0 to 1
-        :except: RuntimeError if not started
+        """出力 duty を設定する。
+
+        Args:
+            duty: 0〜1 の範囲の duty。
+
+        Raises:
+            RuntimeError: 開始されていない場合。
         """
         if self.state() == PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to use pin ({self.pin_number}) that is not started")
+            raise RuntimeError(f"pin({self.pin_number}) は開始されていません")
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
         self.pca9685.set_duty_cycle(self.pin_number, duty)
         self._state = duty
 
 
 #
-# ----- PIGPIO implementation -----
+# ----- PIGPIO 実装 -----
 #
 
-# pigpio is an optional install
+# pigpio は任意インストール
 try:
     import pigpio
     pigpio_pin_edge = [None, pigpio.RISING_EDGE, pigpio.FALLING_EDGE, pigpio.EITHER_EDGE]
     pigpio_pin_pull = [None, pigpio.PUD_OFF, pigpio.PUD_DOWN, pigpio.PUD_UP]
 except ImportError:
-    logger.warn("pigpio was not imported.")
+    logger.warn("pigpio をインポートできませんでした。")
     globals()["pigpio"] = None
 
 
 class InputPinPigpio(InputPin):
     def __init__(self, pin_number: int, pull: int = PinPull.PULL_NONE, pgpio=None) -> None:
-        """
-        Input pin ttl HIGH/LOW using PiGPIO library
-        :param pin_number: GPIO.BOARD mode pin number
-        :param pull: enable a pull up or down resistor on pin.  Default is PinPull.PULL_NONE
-        :param pgpio: instance of pgpio to use or None to allocate a new one
-        """
+        """PiGPIO ライブラリを利用した TTL 入力ピン。"""
         self.pgpio = pgpio
         self.pin_number = pin_number
         self.pull = pigpio_pin_pull[pull]
@@ -779,13 +807,17 @@ class InputPinPigpio(InputPin):
             self.on_input()
 
     def start(self, on_input=None, edge=PinEdge.RISING) -> None:
-        """
-        Start the input pin and optionally set callback.
-        :param on_input: no-arg function to call when an edge is detected, or None to ignore
-        :param edge: type of edge(s) that trigger on_input; default is PinEdge.RISING
+        """入力ピンを開始し、必要ならコールバックを設定する。
+
+        Args:
+            on_input: エッジ検出時に呼び出される無引数関数。無視する場合 ``None``。
+            edge: ``on_input`` を起動するエッジ種類。既定は :class:`PinEdge.RISING`。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start InputPinPigpio({self.pin_number}) that is already started.")
+            raise RuntimeError(f"InputPinPigpio({self.pin_number}) は既に開始されています")
 
         self.pgpio = self.pgpio or pigpio.pi()
         self.pgpio.set_mode(self.pin_number, pigpio.INPUT)
@@ -794,7 +826,7 @@ class InputPinPigpio(InputPin):
         if on_input is not None:
             self.on_input = on_input
             self.pgpio.callback(self.pin_number, pigpio_pin_edge[edge], self._callback)
-        self._state = self.pgpio.read(self.pin_number)  # read initial state
+        self._state = self.pgpio.read(self.pin_number)  # 初期状態を読み取る
 
     def stop(self) -> None:
         if self.state() != PinState.NOT_STARTED:
@@ -804,17 +836,20 @@ class InputPinPigpio(InputPin):
             self._state = PinState.NOT_STARTED
 
     def state(self) -> int:
-        """
-        Return last input() value.  This does NOT read the input again;
-        it returns that last value that input() returned.
-        :return: PinState.LOW/HIGH OR PinState.NOT_STARTED if not started
+        """最後に ``input()`` が返した値を返す。
+
+        入力を再度読み取らず、保存した値をそのまま返す。
+
+        Returns:
+            int: ``PinState.LOW``/``PinState.HIGH`` または ``PinState.NOT_STARTED``。
         """
         return self._state
 
     def input(self) -> int:
-        """
-        Read the input pins state.
-        :return: PinState.LOW/HIGH OR PinState.NOT_STARTED if not started
+        """入力ピンの状態を読み取る。
+
+        Returns:
+            int: ``PinState.LOW``/``PinState.HIGH`` もしくは ``PinState.NOT_STARTED``。
         """
         if self.state() != PinState.NOT_STARTED:
             self._state = self.pgpio.read(self.pin_number)
@@ -822,29 +857,27 @@ class InputPinPigpio(InputPin):
 
 
 class OutputPinPigpio(OutputPin):
-    """
-    Output pin ttl HIGH/LOW using Rpi.GPIO/Jetson.GPIO
-    """
+    """pigpio ライブラリを利用した TTL 出力ピン。"""
     def __init__(self, pin_number: int, pgpio=None) -> None:
         self.pgpio = pgpio
         self.pin_number = pin_number
         self._state = PinState.NOT_STARTED
 
     def start(self, state: int = PinState.LOW) -> None:
-        """
-        Start the pin in output mode.
-        This raises a RuntimeError if the pin is already started.
-        You can check to see if the pin is started by calling
-        state() and checking for PinState.NOT_STARTED
-        :param state: PinState to start with
-        :except: RuntimeError if pin is already started.
+        """出力モードでピンを開始する。
+
+        Args:
+            state: 開始時の :class:`PinState`。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError("Attempt to start OutputPin that is already started.")
+            raise RuntimeError("OutputPin は既に開始されています")
 
         self.pgpio = self.pgpio or pigpio.pi()
         self.pgpio.set_mode(self.pin_number, pigpio.OUTPUT)
-        self.pgpio.write(self.pin_number, state)  # set initial state
+        self.pgpio.write(self.pin_number, state)  # 初期状態を設定
         self._state = state
 
     def stop(self) -> None:
@@ -855,16 +888,18 @@ class OutputPinPigpio(OutputPin):
             self._state = PinState.NOT_STARTED
 
     def state(self) -> int:
-        """
-        Return last output state
-        :return: PinState.LOW/HIGH or PinState.NOT_STARTED if pin not started.
+        """最後に設定した出力状態を返す。
+
+        Returns:
+            int: ``PinState.LOW``/``PinState.HIGH`` または ``PinState.NOT_STARTED``。
         """
         return self._state
 
     def output(self, state: int) -> None:
-        """
-        Write output state to the pin.
-        :param state: PinState.LOW or PinState.HIGH
+        """出力状態を書き込む。
+
+        Args:
+            state: ``PinState.LOW`` または ``PinState.HIGH``。
         """
         if self.state() != PinState.NOT_STARTED:
             self.pgpio.write(self.pin_number, state)
@@ -872,9 +907,7 @@ class OutputPinPigpio(OutputPin):
 
 
 class PwmPinPigpio(PwmPin):
-    """
-    PWM output pin using Rpi.GPIO/Jetson.GPIO
-    """
+    """pigpio ライブラリを利用した PWM 出力ピン。"""
     def __init__(self, pin_number: int, frequency_hz: float = 50, pgpio=None) -> None:
         self.pgpio = pgpio
         self.pin_number: int = pin_number
@@ -882,20 +915,23 @@ class PwmPinPigpio(PwmPin):
         self._state: int = PinState.NOT_STARTED
 
     def start(self, duty: float = 0) -> None:
-        """
-        Start pin with given duty cycle.
-        :param duty: duty cycle in range 0 to 1
-        :except: RuntimeError if pin is already started.
+        """指定したデューティ比で PWM 出力を開始する。
+
+        Args:
+            duty: 0〜1 の範囲で指定するデューティ比。
+
+        Raises:
+            RuntimeError: 既に開始されている場合。
         """
         if self.state() != PinState.NOT_STARTED:
-            raise RuntimeError(f"Attempt to start InputPinPigpio({self.pin_number}) that is already started.")
+            raise RuntimeError(f"InputPinPigpio({self.pin_number}) は既に開始されています")
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
         self.pgpio = self.pgpio or pigpio.pi()
         self.pgpio.set_mode(self.pin_number, pigpio.OUTPUT)
         self.pgpio.set_PWM_frequency(self.pin_number, self.frequency)
-        self.pgpio.set_PWM_range(self.pin_number, 4095)  # 12 bits, same as PCA9685
-        self.pgpio.set_PWM_dutycycle(self.pin_number, int(duty * 4095))  # set initial state
+        self.pgpio.set_PWM_range(self.pin_number, 4095)  # 12bit、PCA9685 と同じ
+        self.pgpio.set_PWM_dutycycle(self.pin_number, int(duty * 4095))  # 初期状態を設定
         self._state = duty
 
     def stop(self) -> None:
@@ -919,7 +955,7 @@ class PwmPinPigpio(PwmPin):
         :except: RuntimeError if not started
         """
         if duty < 0 or duty > 1:
-            raise ValueError("duty_cycle must be in range 0 to 1")
+            raise ValueError("duty_cycle は 0〜1 の範囲でなければなりません")
         if self.state() != PinState.NOT_STARTED:
             self.pgpio.set_PWM_dutycycle(self.pin_number, int(duty * 4095))
             self._state = duty
@@ -931,59 +967,59 @@ if __name__ == '__main__':
     import time
 
     #
-    # output 50% duty cycle on Rpi board pin 33 (equivalent to BCM.13) for 10 seconds
+    # RPi ボードピン 33 (BCM.13 相当) で 50% duty を 10 秒間出力する例
     # python pins.py --pwm-pin=RPI_GPIO.BOARD.33 --duty=0.5 --time=10
     #
-    # input on Rpi board pin 35 (equivalend to BCM.19) for 10 seconds
+    # RPi ボードピン 35 (BCM.19 相当) を 10 秒間入力する例
     # python pins.py --in-pin=RPI_GPIO.BOARD.35 --time=10
     #
-    # output 50% duty cycle on Rpi board pin 33, input on Rpi board pin 35 using interrupt handler
+    # RPi ボードピン 33 を 50% duty で出力し、ピン 35 を割り込み付き入力で読む例
     # python pins.py --pwm-pin=RPI_GPIO.BOARD.33 --duty=0.5 --in-pin=RPI_GPIO.BOARD.35 -int=rising --time=10
     #
-    # output on Rpi board pin 33, input on Rpi board pin 35 using interrupt handler
+    # RPi ボードピン 33 を出力、ピン 35 を割り込み付き入力で読む例
     # python pins.py --out-pin=RPI_GPIO.BOARD.33 --duty=0.5 --in-pin=RPI_GPIO.BOARD.35 -int=rising --time=10
     #
     #
-    # parse arguments
+    # 引数を解析
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--pwm-pin", type=str, default=None,
-                        help="pwm pin id, like 'PCA9685:1:60.13' or 'RPI_GPIO.BCM.13")
+                        help="PWM ピン ID。例: 'PCA9685:1:60.13' または 'RPI_GPIO.BCM.13'")
     parser.add_argument("-hz", "--hertz", type=int, default=60,
-                        help="PWM signal frequence in hertz.  Default is 60hz")
+                        help="PWM 信号の周波数(Hz)。既定は 60Hz")
     parser.add_argument("-d", "--duty", type=float, default=0.5,
-                        help="duty cycle in range 0 to 1.  Default is 0.5")
+                        help="デューティ比 (0〜1)。既定は 0.5")
 
     parser.add_argument("-o", "--out-pin", type=str, default=None,
-                        help="ttl output pin id, like 'PCA9685:1:60.13' or 'RPI_GPIO.BOARD.35' or 'RPI_GPIO.BCM.13'")
+                        help="TTL 出力ピン ID。例: 'PCA9685:1:60.13'、'RPI_GPIO.BOARD.35'、'RPI_GPIO.BCM.13'")
 
     parser.add_argument("-i", "--in-pin", type=str, default=None,
-                        help="ttl input pin id, like 'RPI_GPIO.BOARD.35' or 'RPI_GPIO.BCM.19'")
+                        help="TTL 入力ピン ID。例: 'RPI_GPIO.BOARD.35' や 'RPI_GPIO.BCM.19'")
     parser.add_argument("-pu", "--pull", type=str, choices=['up', 'down', 'none'], default='none',
-                        help="input pin pullup, one of 'up', 'down', 'none'")
+                        help="入力ピンのプルアップ設定。'up'、'down'、'none' のいずれか")
     parser.add_argument("-int", "--interrupt", type=str, choices=['falling', 'rising', 'both', 'none'], default='none',
-                        help="use interrupt routine on in-pin with given edge; 'falling', 'rising' or 'both'")
-    parser.add_argument("-tm", "--time", type=float, default=1, help="duration test in seconds")
-    parser.add_argument("-db", "--debug", action='store_true', help="show debug output")
-    parser.add_argument("-th", "--threaded", action='store_true', help="run in threaded mode")
+                        help="割り込みを使用するエッジ種別: 'falling'、'rising'、'both' のいずれか")
+    parser.add_argument("-tm", "--time", type=float, default=1, help="テスト実行時間(秒)")
+    parser.add_argument("-db", "--debug", action='store_true', help="デバッグ出力を表示")
+    parser.add_argument("-th", "--threaded", action='store_true', help="スレッドモードで実行")
 
     # Read arguments from command line
     args = parser.parse_args()
 
     help = []
     if args.hertz < 1:
-        help.append("-hz/--hertz: must be >= 1.")
+        help.append("-hz/--hertz は 1 以上で指定してください")
 
     if args.duty < 0 or args.duty > 1:
-        help.append("-d/--duty: must be in range 0 to 1")
+        help.append("-d/--duty は 0〜1 の範囲で指定してください")
 
     if args.pwm_pin is None and args.out_pin is None and args.in_pin is None:
-        help.append("must have one of -o/--out-pin or -p/--pwm-pin or -i/--in-pin")
+        help.append("-o/--out-pin、-p/--pwm-pin、-i/--in-pin のいずれかを指定してください")
 
     if args.pwm_pin is not None and args.out_pin is not None:
-        help.append("must have only one of -o/--out-pin or -p/--pwn-pin")
+        help.append("-o/--out-pin と -p/--pwm-pin は同時に指定できません")
 
     if args.time < 1:
-        help.append("-tm/--time: must be > 0.")
+        help.append("-tm/--time は 0 より大きい値を指定してください")
 
     if len(help) > 0:
         parser.print_help()
@@ -1015,7 +1051,7 @@ if __name__ == '__main__':
     ttl_in_pin: InputPin = None
     try:
         #
-        # construct a pin of the correct type
+        # 適切な種類のピンを構築
         #
         if args.in_pin is not None:
             ttl_in_pin = input_pin_by_id(args.in_pin, pin_pull[args.pull])
@@ -1043,16 +1079,16 @@ if __name__ == '__main__':
                     ttl_out_pin.output(PinState.LOW)
                     time.sleep(1 / args.hertz * (1 - args.duty))
             else:
-                # yield time to background threads
+                # バックグラウンドスレッドに処理を譲る
                 sleep_time = 1/args.hertz - (time.time() - start_time)
                 if sleep_time > 0.0:
                     time.sleep(sleep_time)
                 else:
-                    time.sleep(0)  # yield time to other threads
+                    time.sleep(0)  # 他スレッドへ処理を譲る
             start_time = time.time()
 
     except KeyboardInterrupt:
-        print('Stopping early.')
+        print('早期終了します。')
     except Exception as e:
         print(e)
         exit(1)

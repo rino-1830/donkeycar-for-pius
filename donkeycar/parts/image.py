@@ -6,8 +6,17 @@ from donkeycar.utils import img_to_binary, binary_to_img, arr_to_img, \
 
 
 class ImgArrToJpg():
+    """Numpy 配列の画像を JPEG バイト列へ変換するクラス。"""
 
     def run(self, img_arr):
+        """画像配列を JPEG のバイト列に変換する。
+
+        Args:
+            img_arr: 画像の ``numpy.ndarray``。
+
+        Returns:
+            ``bytes`` もしくは ``None``。
+        """
         if img_arr is None:
             return None
         try:
@@ -19,8 +28,17 @@ class ImgArrToJpg():
 
 
 class JpgToImgArr():
+    """JPEG バイト列を ``numpy.ndarray`` に変換するクラス。"""
 
     def run(self, jpg):
+        """JPEG データを画像配列に変換する。
+
+        Args:
+            jpg: JPEG 形式のバイト列。
+
+        Returns:
+            ``numpy.ndarray`` もしくは ``None``。
+        """
         if jpg is None:
             return None
         image = binary_to_img(jpg)
@@ -29,14 +47,17 @@ class JpgToImgArr():
 
 
 class StereoPair:
-    '''
-    take two images and put together in a single image
-    '''
+    """2 枚の画像を 1 枚にまとめるクラス。"""
     def run(self, image_a, image_b):
-        '''
-        This will take the two images and combine them into a single image
-        One in red, the other in green, and diff in blue channel.
-        '''
+        """2 枚の画像を合成し、赤と緑に配置し差分を青チャンネルへ入れる。
+
+        Args:
+            image_a: 1 枚目の ``numpy.ndarray``。
+            image_b: 2 枚目の ``numpy.ndarray``。
+
+        Returns:
+            3 チャンネルの ``numpy.ndarray``。
+        """
         if image_a is not None and image_b is not None:
             width, height, _ = image_a.shape
             grey_a = dk.utils.rgb2gray(image_a)
@@ -54,9 +75,7 @@ class StereoPair:
 
 
 class ImgCrop:
-    """
-    Crop an image to an area of interest. 
-    """
+    """興味領域を指定して画像を切り抜くクラス。"""
     def __init__(self, top=0, bottom=0, left=0, right=0):
         self.top = top
         self.bottom = bottom
@@ -64,10 +83,18 @@ class ImgCrop:
         self.right = right
         
     def run(self, img_arr):
+        """画像を指定範囲で切り抜く。
+
+        Args:
+            img_arr: 切り抜き対象の ``numpy.ndarray``。
+
+        Returns:
+            切り抜かれた ``numpy.ndarray`` もしくは ``None``。
+        """
         if img_arr is None:
             return None
         width, height, _ = img_arr.shape
-        img_arr = img_arr[self.top:height-self.bottom, 
+        img_arr = img_arr[self.top:height-self.bottom,
                           self.left: width-self.right]
         return img_arr
 
@@ -76,24 +103,25 @@ class ImgCrop:
 
 
 class ImgStack:
-    """
-    Stack N previous images into a single N channel image, after converting
-    each to grayscale. The most recent image is the last channel, and pushes
-    previous images towards the front.
-    """
+    """過去 ``N`` 枚のグレースケール画像をチャンネル方向に積み重ねるクラス。"""
     def __init__(self, num_channels=3):
         self.img_arr = None
         self.num_channels = num_channels
 
     def rgb2gray(self, rgb):
-        '''
-        take a numpy rgb image return a new single channel image converted to
-        greyscale
-        '''
+        """RGB 画像をグレースケールに変換する。"""
         return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
         
     def run(self, img_arr):
-        width, height, _ = img_arr.shape        
+        """画像をスタックし ``num_channels`` チャンネルの配列を返す。
+
+        Args:
+            img_arr: 最新の ``numpy.ndarray`` 画像。
+
+        Returns:
+            スタックされた ``numpy.ndarray``。
+        """
+        width, height, _ = img_arr.shape
         gray = self.rgb2gray(img_arr)
         
         if self.img_arr is None:

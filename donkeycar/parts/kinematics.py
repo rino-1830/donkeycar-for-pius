@@ -3,15 +3,15 @@ import math
 import time
 from typing import Tuple
 
+"""運動学に関する部品を提供するモジュール."""
+
 from donkeycar.utils import compare_to, sign, is_number_type, clamp
 
 logger = logging.getLogger(__name__)
 
 
-def limit_angle(angle:float):
-    """
-    limit angle to pi to -pi radians (one full circle)
-    """
+def limit_angle(angle: float):
+    """角度を -\u03c0 から \u03c0 の範囲に正規化する."""
     return math.atan2(math.sin(angle), math.cos(angle))
     # twopi = math.pi * 2
     # while(angle > math.pi):
@@ -22,26 +22,25 @@ def limit_angle(angle:float):
 
 
 class Pose2D:
-    def __init__(self, x:float=0.0, y:float=0.0, angle:float=0.0) -> None:
+    """2\u6b21\u5143\u7a7a\u9593\u306e\u59ff\u52e2\u3092\u8868\u3059\u7c21\u5358\u306a\u30c7\u30fc\u30bf\u69cb\u9020."""
+
+    def __init__(self, x: float = 0.0, y: float = 0.0, angle: float = 0.0) -> None:
         self.x = x
         self.y = y
         self.angle = angle
 
 
 class Bicycle:
-    """
-    Bicycle forward kinematics for a car-like vehicle (Ackerman steering),
-    using the point midway between the front wheels as a reference point,
-    takes the steering angle in radians and output of the odometer 
-    and turns those into:
-    - forward distance and velocity of the reference point between the front wheels,
-    - pose; angle aligned (x,y) position and orientation in radians
-    - pose velocity; change in angle aligned position and orientation per second
-    @param wheel_base: distance between the front and back wheels
+    """Ackermann\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u8eca\u4e21\u306e\u30d5\u30a9\u30ef\u30fc\u30c9\u30ad\u30cd\u30de\u30c6\u30a3\u30af\u30b9\u3092\u5b9f\u73fe\u3059\u308b\u81ea\u8ee2\u8eca\u30e2\u30c7\u30eb\u3002
 
-    NOTE: this version uses the point midway between the front wheels
-          as the point of reference.
-    see https://thef1clan.com/2020/09/21/vehicle-dynamics-the-kinematic-bicycle-model/
+    \u524d\u8eca\u8f2a\u306e\u4e2d\u70b9\u3092\u53c2\u7167\u70b9\u3068\u3057\u3066\u3001\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3068\u30aa\u30c9\u30e1\u30c8\u30ea\u306e\u8aad\u307f\u3092\u57fa\u306b\u3001\u524d\u9032\u8ddd\u96e2\u3068\u901f\u5ea6\u3001\u59ff\u52e2\u3001\u59ff\u52e2\u901f\u5ea6\u3092\u7b97\u51fa\u3059\u308b\u3002
+
+    Args:
+        wheel_base (float): \u524d\u8eca\u8f2a\u3068\u5f8c\u8eca\u8f2a\u9593\u306e\u8ddd\u96e2\u3002
+
+    Note:
+        \u3053\u306e\u30af\u30e9\u30b9\u306f\u524d\u8eca\u8f2a\u4e2d\u70b9\u3092\u53c2\u7167\u70b9\u3068\u3057\u3066\u4f7f\u7528\u3059\u308b\u3002
+        https://thef1clan.com/2020/09/21/vehicle-dynamics-the-kinematic-bicycle-model/ \u3082\u53c2\u7167\u306e\u3053\u3068\u3002
     """
     def __init__(self, wheel_base:float, debug=False):
         self.wheel_base:float = wheel_base
@@ -54,28 +53,22 @@ class Bicycle:
         self.pose_velocity = Pose2D()
         self.running:bool = True
 
-    def run(self, forward_distance:float, steering_angle:float, timestamp:float=None) -> Tuple[float, float, float, float, float, float, float, float, float]:
-        """
-        params
-            forward_distance: distance the reference point between the
-                              front wheels has travelled
-            steering_angle: angle in radians of the front 'wheel' from forward.
-                            In this case left is positive, right is negative,
-                            and directly forward is zero.
-            timestamp: time of distance readings or None to use current time
-        returns
-            distance
-            velocity
-            x is horizontal position of reference point midway between front wheels
-            y is vertical position of reference point midway between front wheels
-            angle is orientation in radians of the vehicle along it's wheel base
-                  (along the line between the reference points midway between
-                   the front wheels and and midway between the back wheels)
-            x' is the horizontal velocity (rate of change of reference point along horizontal axis)
-            y' is the vertical velocity (rate of change of reference point along vertical axis)
-            angle' is the angular velocity (rate of change of orientation)
-            timestamp
+    def run(
+        self,
+        forward_distance: float,
+        steering_angle: float,
+        timestamp: float | None = None,
+    ) -> Tuple[float, float, float, float, float, float, float, float, float]:
+        """\u30aa\u30c9\u30e1\u30c8\u30ea\u8a66\u8a3c\u7d50\u679c\u3068\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u304b\u3089\u59ff\u52e2\u3092\u66f4\u65b0\u3059\u308b\u3002
 
+        Args:
+            forward_distance (float): \u524d\u8eca\u8f2a\u4e2d\u70b9\u304c\u79fb\u52d5\u3057\u305f\u8ddd\u96e2\u3002
+            steering_angle (float): \u524d\u8eca\u8f2a\u306e\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\uff08\u5de6\u304c\u6b63\uff09\u3002
+            timestamp (float | None): \u8ddd\u96e2\u8a18\u9332\u306e\u6642\u523b\u3002\u6307\u5b9a\u3057\u306a\u3044\u5834\u5408\u306f\u73fe\u5728\u6642\u523b\u3092\u4f7f\u7528\u3059\u308b\u3002
+
+        Returns:
+            Tuple[float, float, float, float, float, float, float, float, float]:
+                \u79fb\u52d5\u8ddd\u96e2\u3001\u901f\u5ea6\u3001x\u5ea7\u6a19\u3001y\u5ea7\u6a19\u3001\u65b9\u5411\u89d2\u3001x\u901f\u5ea6\u3001y\u901f\u5ea6\u3001\u89d2\u901f\u5ea6\u3001\u6642\u523b\u3002
         """
         if timestamp is None:
             timestamp = time.time()
@@ -92,15 +85,15 @@ class Bicycle:
                 self.timestamp = timestamp
             elif timestamp > self.timestamp:
                 #
-                # changes from last run
+                # \u524d\u56de\u306e\u5b9f\u884c\u304b\u3089\u306e\u5909\u5316
                 #
                 delta_time = timestamp - self.timestamp
                 delta_distance = forward_distance - self.forward_distance
                 delta_steering_angle = steering_angle - self.steering_angle
 
                 #
-                # new position and orientation
-                # assumes delta_time is small and so assumes movement is linear
+                # \u65b0\u3057\u3044\u4f4d\u7f6e\u3068\u65b9\u5411
+                # delta_time\u304c\u5c0f\u3055\u3044\u3068\u4eee\u5b9a\u3057\u3001\u52d5\u304d\u3092\u7dda\u5f62\u3068\u307f\u306a\u3059
                 #
                 # x, y, angle = update_bicycle_front_wheel_pose(
                 #     self.pose,
@@ -109,21 +102,21 @@ class Bicycle:
                 #     delta_distance)
                 #
                 # #
-                # # update velocities
+                # # \u901f\u5ea6\u306e\u66f4\u65b0
                 # #
                 # forward_velocity = delta_distance / delta_time
                 # self.pose_velocity.angle = (angle - self.pose.angle) / delta_time
                 # self.pose_velocity.x = (x - self.pose.x) / delta_time
                 # self.pose_velocity.y = (y - self.pose.y) / delta_time
                 # #
-                # # update pose
+                # # \u59ff\u52e2\u306e\u66f4\u65b0
                 # #
                 # self.pose.x = x
                 # self.pose.y = y
                 # self.pose.angle = angle
 
                 #
-                # new velocities
+                # \u65b0\u3057\u3044\u901f\u5ea6\u5024
                 #
                 forward_velocity = delta_distance / delta_time
                 self.pose_velocity.angle = bicycle_angular_velocity(self.wheel_base, forward_velocity, steering_angle)
@@ -133,7 +126,7 @@ class Bicycle:
                 self.pose_velocity.y = forward_velocity * math.sin(estimated_angle)
 
                 #
-                # new pose
+                # \u65b0\u3057\u3044\u59ff\u52e2
                 #
                 self.pose.x = self.pose.x + self.pose_velocity.x * delta_time
                 self.pose.y = self.pose.y + self.pose_velocity.y * delta_time
@@ -142,7 +135,7 @@ class Bicycle:
                 self.steering_angle = steering_angle
 
                 #
-                # update odometry
+                # オドメトリの更新
                 #
                 self.forward_distance = forward_distance
                 self.forward_velocity = forward_velocity
@@ -270,48 +263,48 @@ def bicycle_angular_velocity(wheel_base:float, forward_velocity:float, steering_
     # angular_velocity = forward_velocity * math.tan(steering_angle) /  wheel_base if velocity is from rear wheels
     # angular_velocity = forward_velocity * math.tan(steering_angle) /  wheel_base if velocity is from front wheels
     #
-    # return forward_velocity * math.tan(steering_angle) / wheel_base # velocity for rear wheel
-    return forward_velocity * math.sin(steering_angle) / wheel_base  # velocity of front wheel
+    # return forward_velocity * math.tan(steering_angle) / wheel_base # \u5f8c\u8eca\u8f2a\u7528\u306e\u901f\u5ea6
+    return forward_velocity * math.sin(steering_angle) / wheel_base  # \u524d\u8eca\u8f2a\u306e\u901f\u5ea6
 
 
 class BicycleNormalizeAngularVelocity:
-    """
-    For a car-like vehicle, convert an angular velocity in radians per second
-    to a value between -1 and 1 inclusive.
+    """\u8eca\u5f0f\u30d0\u30a4\u30b7\u30af\u30eb\u30e2\u30c7\u30eb\u306e\u89d2\u901f\u5ea6\u3092\u5b9f\u6570\u304b\u3089\u6b63\u898f\u5316\u5024\u3078\u7b97\u51fa\u3059\u308b\u30d1\u30fc\u30c4\u3002
+
+    Args:
+        wheel_base (float): \u8eca\u8f2a\u57fa\u7dda\u306e\u9577\u3055\u3002
+        max_forward_velocity (float): \u6e2c\u5b9a\u3055\u308c\u305f\u6700\u9ad8\u901f\u5ea6\u3002
+        max_steering_angle (float): \u6e2c\u5b9a\u3055\u308c\u305f\u6700\u5927\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3002
     """
     def __init__(self, wheel_base:float, max_forward_velocity:float, max_steering_angle:float) -> None:
         self.max_angular_velocity = bicycle_angular_velocity(wheel_base, max_forward_velocity, max_steering_angle)
 
-    def run(self, angular_velocity:float) -> float:
+    def run(self, angular_velocity: float) -> float:
+        """\u89d2\u901f\u5ea6\u3092\u7bc4\u56f2 -1 \u304b\u3089 1 \u306b\u5909\u63db\u3059\u308b."""
         return angular_velocity / self.max_angular_velocity
 
 
 class BicycleUnnormalizeAngularVelocity:
-    """
-    For a car-like vehicle, convert a normalized angular velocity in range -1 to 1
-    into a real angular velocity in radians per second.
-    """
+    """\u6b63\u898f\u5316\u3055\u308c\u305f\u89d2\u901f\u5ea6\u3092\u5b9f\u5024\u306e\u89d2\u901f\u5ea6\u306b\u5909\u63db\u3059\u308b\u30d1\u30fc\u30c4\u3002"""
     def __init__(self, wheel_base:float, max_forward_velocity:float, max_steering_angle:float) -> None:
         self.max_angular_velocity = bicycle_angular_velocity(wheel_base, max_forward_velocity, max_steering_angle)
 
-    def run(self, normalized_angular_velocity:float) -> float:
+    def run(self, normalized_angular_velocity: float) -> float:
+        """\u6b63\u898f\u5316\u3055\u308c\u305f\u5024\u304b\u3089\u89d2\u901f\u5ea6\u3092\u5f97\u308b."""
         if abs(normalized_angular_velocity) > 1:
-            logger.error("Warning: normalized_angular_velocity must be between -1 and 1")
+            logger.error("\u8b66\u544a: normalized_angular_velocity \u306f -1 \u304b\u3089 1 \u306e\u9593\u3067\u3042\u308b\u3079\u304d")
         return normalized_angular_velocity * self.max_angular_velocity
 
 
 class Unicycle:
-    """
-    Unicycle forward kinematics takes the output of the 
-    left and right odometers and 
-    turns those into:
-    - forward distance and velocity,
-    - pose; angle aligned (x,y) position and orientation in radians
-    - pose velocity; change in angle aligned position and orientation per second
-    axle_length: distance between the two drive wheels
-    wheel_radius: radius of wheel; must be in same units as axle_length
-                  It is assumed that both wheels have the same radius
-    see http://faculty.salina.k-state.edu/tim/robotics_sg/Control/kinematics/unicycle.html
+    """\u30c7\u30d5\u30a1\u30ec\u30f3\u30b7\u30e3\u30eb\u30c9\u30e9\u30a4\u30d6\u8eca\u4e21\u306e\u9802\u70b9\u30ad\u30cd\u30de\u30c6\u30a3\u30af\u30b9\u3002
+
+    \u5de6\u8eca\u8f2a\u3068\u53f3\u8eca\u8f2a\u306e\u30aa\u30c9\u30e1\u30fc\u30bf\u3092\u5165\u529b\u3068\u3057\u3001\u524d\u9032\u8ddd\u96e2\u3084\u901f\u5ea6\u3001\u59ff\u52e2\u3092\u7b97\u51fa\u3059\u308b\u3002
+
+    Args:
+        axle_length (float): \u4e21\u8eca\u8f2a\u9593\u306e\u8ddd\u96e2\u3002
+
+    Note:
+        http://faculty.salina.k-state.edu/tim/robotics_sg/Control/kinematics/unicycle.html を参照。
     """
     def __init__(self, axle_length:float, debug=False):
         self.axle_length:float = axle_length
@@ -324,23 +317,22 @@ class Unicycle:
         self.pose_velocity = Pose2D()
         self.running:bool = True
 
-    def run(self, left_distance:float, right_distance:float, timestamp:float=None) -> Tuple[float, float, float, float, float, float, float, float, float]:
-        """
-        params
-            left_distance: distance left wheel has travelled
-            right_distance: distance right wheel has travelled
-            timestamp: time of distance readings or None to use current time
-        returns
-            distance
-            velocity
-            x is horizontal position of point midway between wheels
-            y is vertical position of point midway between wheels
-            angle is orientation in radians around point midway between wheels
-            x' is the horizontal velocity
-            y' is the vertical velocity
-            angle' is the angular velocity
-            timestamp
+    def run(
+        self,
+        left_distance: float,
+        right_distance: float,
+        timestamp: float | None = None,
+    ) -> Tuple[float, float, float, float, float, float, float, float, float]:
+        """\u30aa\u30c9\u30e1\u30c8\u30ea\u7d50\u679c\u304b\u3089\u59ff\u52e2\u3092\u7b97\u51fa\u3059\u3002
 
+        Args:
+            left_distance (float): \u5de6\u8eca\u8f2a\u304c\u9032\u3093\u3060\u8ddd\u96e2\u3002
+            right_distance (float): \u53f3\u8eca\u8f2a\u304c\u9032\u3093\u3060\u8ddd\u96e2\u3002
+            timestamp (float | None): \u8ddd\u96e2\u8aad\u307f\u53d6\u308a\u6642\u523b\u3002None \u306a\u3089\u73fe\u5728\u6642\u523b\u3002
+
+        Returns:
+            Tuple[float, float, float, float, float, float, float, float, float]:
+                \u79fb\u52d5\u8ddd\u96e2\u3001\u901f\u5ea6\u3001x\u5ea7\u6a19\u3001y\u5ea7\u6a19\u3001\u65b9\u5411\u89d2\u3001x\u901f\u5ea6\u3001y\u901f\u5ea6\u3001\u89d2\u901f\u5ea6\u3001\u6642\u523b\u3002
         """
         if timestamp is None:
             timestamp = time.time()
@@ -356,7 +348,7 @@ class Unicycle:
                 self.timestamp = timestamp
             elif timestamp > self.timestamp:
                 #
-                # changes from last run
+                # \u524d\u56de\u306e\u5b9f\u884c\u304b\u3089\u306e\u5909\u5316
                 #
                 delta_left_distance = left_distance - self.left_distance
                 delta_right_distance = right_distance - self.right_distance
@@ -368,7 +360,7 @@ class Unicycle:
                 angle_velocity = delta_angle / delta_time
 
                 #
-                # new position and orientation
+                # \u65b0\u3057\u3044\u4f4d\u7f6e\u3068\u65b9\u5411
                 #
                 estimated_angle = limit_angle(self.pose.angle + delta_angle / 2)
                 x = self.pose.x + delta_distance * math.cos(estimated_angle)
@@ -376,21 +368,21 @@ class Unicycle:
                 angle = limit_angle(self.pose.angle + delta_angle)
 
                 #
-                # new velocities
+                # \u65b0\u3057\u3044\u901f\u5ea6\u5024
                 #
                 self.pose_velocity.x = (x - self.pose.x) / delta_time
                 self.pose_velocity.y = (y - self.pose.y) / delta_time
                 self.pose_velocity.angle = angle_velocity
 
                 #
-                # update pose
+                # \u59ff\u52e2\u3092\u66f4\u65b0
                 #
                 self.pose.x = x
                 self.pose.y = y
                 self.pose.angle = angle
 
                 #
-                # update odometry
+                # \u30aa\u30c9\u30e1\u30c8\u30ea\u306e\u66f4\u65b0
                 #
                 self.left_distance = left_distance
                 self.right_distance = right_distance
@@ -413,10 +405,9 @@ class Unicycle:
 
 
 class InverseUnicycle:
-    """
-    Unicycle inverse kinematics that converts forward velocity and 
-    angular orientation velocity into invidual linear wheel velocities 
-    in a differential drive robot.
+    """\u30c7\u30d5\u30a1\u30ec\u30f3\u30b7\u30e3\u30eb\u306e\u9006\u7b97\u904b\u52d5\u5b66\u3092\u5b9f\u88c5\u3059\u308b\u30d1\u30fc\u30c4\u3002
+
+    \u524d\u9032\u901f\u5ea6\u3068\u89d2\u901f\u5ea6\u304b\u3089\u3001\u5de6\u53f3\u8eca\u8f2a\u306e\u7dda\u5f62\u901f\u5ea6\u3092\u7b97\u51fa\u3059\u3002
     """
     def __init__(self, axle_length:float, wheel_radius:float, min_speed:float, max_speed:float, steering_zero:float=0.01, debug=False):
         self.axle_length:float = axle_length
@@ -430,20 +421,21 @@ class InverseUnicycle:
         self.wheel_diameter = 2 * wheel_radius
         self.wheel_circumference = math.pi * self.wheel_diameter
 
-    def run(self, forward_velocity:float, angular_velocity:float, timestamp:float=None) -> Tuple[float, float, float]:
-        """
-        Convert turning velocity in radians and forward velocity (like meters per second)
-        into left and right linear wheel speeds that result in that forward speed
-        at that turning angle
-        see http://faculty.salina.k-state.edu/tim/robotics_sg/Control/kinematics/unicycle.html#calculating-wheel-velocities
+    def run(
+        self,
+        forward_velocity: float,
+        angular_velocity: float,
+        timestamp: float | None = None,
+    ) -> Tuple[float, float, float]:
+        """\u8ee2\u56de\u901f\u5ea6\u3068\u524d\u9032\u901f\u5ea6\u304b\u3089\u8eca\u8f2a\u901f\u5ea6\u3092\u7b97\u51fa\u3059\u3002
 
-        @parma forward_velocity:float in meters per second
-        @param angular_velocity:float in radians per second
-        @param timestamp:float epoch seconds or None to use current time
-        @return tuple
-                - left_wheel_velocity: in meters per second
-                - right_wheel_velocity in meters per second
-                - timestamp
+        Args:
+            forward_velocity (float): \u524d\u9032\u901f\u5ea6\uff08m/s\uff09。
+            angular_velocity (float): \u89d2\u901f\u5ea6\uff08rad/s\uff09。
+            timestamp (float | None): \u30c7\u30fc\u30bf\u53d6\u5f97\u6642\u523b\u3002None \u306a\u3089\u73fe\u5728\u6642\u523b\u3002
+
+        Returns:
+            Tuple[float, float, float]: \u5de6\u8eca\u8f2a\u901f\u5ea6\u3001\u53f3\u8eca\u8f2a\u901f\u5ea6\u3001\u6642\u523b\u3002
         """
         if timestamp is None:
             timestamp = time.time()
@@ -453,7 +445,7 @@ class InverseUnicycle:
 
         self.timestamp = timestamp
 
-        # left/right linear speeds and timestamp
+        # \u5de6\u53f3\u8eca\u8f2a\u306e\u7dda\u5f62\u901f\u5ea6\u3068\u6642\u523b
         return left_linear_speed, right_linear_speed, timestamp
 
     def shutdown(self):
@@ -467,8 +459,9 @@ def unicycle_angular_velocity(wheel_radius:float, axle_length:float, left_veloci
     using the unicycle model and linear wheel velocities. 
     """
     #
-    # since angular_velocity = wheel_radius / axle_length * (right_rotational_velocity - left_rotational_velocity)
-    # where wheel rotational velocity is in radians per second.
+    # angular_velocity = wheel_radius / axle_length * (right_rotational_velocity - left_rotational_velocity)
+    # という関係からの計算
+    # ホイール転速はラジアン/秒である
     #
     right_rotational_velocity = wheel_rotational_velocity(wheel_radius, right_velocity)
     left_rotational_velocity = wheel_rotational_velocity(wheel_radius, left_velocity)
@@ -484,105 +477,73 @@ def unicycle_max_angular_velocity(wheel_radius:float, axle_length:float, max_for
     one wheel is stopped and one wheel is at max velocity.
     """
     #
-    # since angular_velocity = wheel_radius / axle_length * (right_rotational_velocity - left_rotational_velocity)
-    # where wheel rotational velocity is in radians per second.
-    # then if we drive the right wheel at maximum velocity and keep the left wheel stopped
-    # we get max_angular_velocity = wheel_radius / axle_length * max_forward_velocity
+    # angular_velocity = wheel_radius / axle_length * (right_rotational_velocity - left_rotational_velocity)
+    # ホイール転速はラジアン/秒である
+    # 右車輪を最大速度で回し左車輪を停止させると
+    # max_angular_velocity = wheel_radius / axle_length * max_forward_velocity
     #
     return unicycle_angular_velocity(wheel_radius, axle_length, 0, max_forward_velocity)
 
 
 class UnicycleNormalizeAngularVelocity:
-    """
-    For a differential drive vehicle, convert an angular velocity in radians per second
-    to a value between -1 and 1 inclusive.
-    """
+    """\u8eca\u8f2a\u5229\u7528\u578b\u8eca\u4e21\u306e\u89d2\u901f\u5ea6\u3092\u6b63\u898f\u5316\u3059\u308b\u30d1\u30fc\u30c4\u3002"""
     def __init__(self, wheel_radius:float, axle_length:float, max_forward_velocity:float) -> None:
         self.max_angular_velocity = unicycle_max_angular_velocity(wheel_radius, axle_length, max_forward_velocity)
 
-    def run(self, angular_velocity:float) -> float:
+    def run(self, angular_velocity: float) -> float:
+        """\u89d2\u901f\u5ea6\u3092 -1 \u304b\u3089 1 \u306b\u5909\u63db\u3059\u308b."""
         return angular_velocity / self.max_angular_velocity
 
 
 class UnicycleUnnormalizeAngularVelocity:
-    """
-    For a differential drive vehicle, convert a normalized angular velocity in range -1 to 1
-    into a real angular velocity in radians per second.
-    """
+    """\u6b63\u898f\u5316\u89d2\u901f\u5ea6\u3092\u5b9f\u969b\u306e\u89d2\u901f\u5ea6\u306b\u5909\u63db\u3059\u308b\u30d1\u30fc\u30c4\u3002"""
     def __init__(self, wheel_radius:float, axle_length:float, max_forward_velocity:float) -> None:
         self.max_angular_velocity = unicycle_max_angular_velocity(wheel_radius, axle_length, max_forward_velocity)
 
-    def run(self, normalized_angular_velocity:float) -> float:
+    def run(self, normalized_angular_velocity: float) -> float:
+        """\u6b63\u898f\u5316\u5024\u304b\u3089\u89d2\u901f\u5ea6\u3092\u8a08\u7b97\u3059\u308b."""
         if abs(normalized_angular_velocity) > 1:
-            logger.error("Warning: normalized_angular_velocity must be between -1 and 1")
+            logger.error("\u8b66\u544a: normalized_angular_velocity \u306f -1 \u304b\u3089 1 \u306e\u9593\u3067\u3042\u308b\u3079\u304d")
         return normalized_angular_velocity * self.max_angular_velocity
 
 
 class NormalizeSteeringAngle:
-    """
-    Part to convert real steering angle in radians
-    to a to a normalize steering value in range -1 to 1
-    """
+    """\u5b9f\u969b\u306e\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3092\u6b63\u898f\u5316\u5024\u3078\u5909\u63db\u3059\u308b\u30d1\u30fc\u30c4\u3002"""
     def __init__(self, max_steering_angle:float, steering_zero:float=0.0) -> None:
-        """
-        @param max_steering_angle:float measured maximum steering angle in radians
-        @param steering_zero:float value at or below which normalized steering values
-                                   are considered to be zero.
-        """
+        """\u6e2c\u5b9a\u3055\u308c\u305f\u6700\u5927\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3068\u3001\u30bc\u30ed\u5224\u5b9a\u5024\u3092\u8a2d\u5b9a\u3059\u308b\u3002"""
         self.max_steering_angle = max_steering_angle
         self.steering_zero = steering_zero
     
     def run(self, steering_angle) -> float:
-        """
-        @param steering angle in radians where
-               positive radians is a left turn,
-               negative radians is a right turn
-        @return a normalized steering value in range -1 to 1, where
-               -1 is full left, corresponding to positive max_steering_angle
-                1 is full right, corresponding to negative max_steering_angle
-        """
+        """\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3092\u6b63\u898f\u5316\u3057\u305f\u5024\u306b\u5909\u63db\u3059\u308b."""
         if not is_number_type(steering_angle):
-            logger.error("steering angle must be a number.")
+            logger.error("\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u306f\u6570\u5024\u3067\u306a\u3051\u308c\u3070\u306a\u308a\u307e\u305b\u3093")
             return 0
 
         steering = steering_angle / self.max_steering_angle
         if abs(steering) <= self.steering_zero:
             return 0
-        return -steering # positive steering angle is negative normalized
+        return -steering # \u5b9f\u5728\u306e\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u304c\u6b63\u306e\u5834\u5408\u3001\u30ce\u30fc\u30de\u30e9\u30a4\u30ba\u5024\u306f\u8ca0\u306b\u306a\u308b
 
     def shutdown(self):
         pass
 
 
 class UnnormalizeSteeringAngle:
-    """
-    Part to convert normalized steering in range -1 to 1
-    to a to real steering angle in radians
-    """
+    """\u6b63\u898f\u5316\u3055\u308c\u305f\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u3092\u5b9f\u969b\u306e\u89d2\u5ea6\u306b\u5909\u63db\u3059\u308b\u30d1\u30fc\u30c4\u3002"""
     def __init__(self, max_steering_angle:float, steering_zero:float=0.0) -> None:
-        """
-        @param max_steering_angle:float measured maximum steering angle in radians
-        @param steering_zero:float value at or below which normalized steering values
-                                   are considered to be zero.
-        """
+        """\u6e2c\u5b9a\u3055\u308c\u305f\u6700\u5927\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3068\u30bc\u30ed\u5224\u5b9a\u5024\u3092\u8a2d\u5b9a\u3059\u308b\u3002"""
         self.max_steering_angle = max_steering_angle
         self.steering_zero = steering_zero
     
     def run(self, steering) -> float:
-        """
-        @param a normalized steering value in range -1 to 1, where
-               -1 is full left, corresponding to positive max_steering_angle
-                1 is full right, corresponding to negative max_steering_angle
-        @return steering angle in radians where
-                positive radians is a left turn,
-                negative radians is a right turn
-        """
+        """\u6b63\u898f\u5316\u5024\u3092\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u306b\u5909\u63db\u3059\u308b."""
         if not is_number_type(steering):
-            logger.error("steering must be a number")
+            logger.error("\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u306f\u6570\u5024\u3067\u306a\u3051\u308c\u3070\u306a\u308a\u307e\u305b\u3093")
             return 0
 
         if steering > 1 or steering < -1:
-            logger.warn(f"steering = {steering}, but must be between 1(right) and -1(left)")
+            logger.warn(f"steering = {steering}, \u3067\u3059\u304c 1\u304b\u3089 -1 \u306e\u7bc4\u56f2\u3067\u3042\u308b\u3079\u304d")
 
         steering = clamp(steering, -1, 1)
         
@@ -598,48 +559,41 @@ class UnnormalizeSteeringAngle:
 
 
 def wheel_rotational_velocity(wheel_radius:float, speed:float) -> float:
-    """
-    Convert a forward speed to wheel rotational speed in radians per second.
-    Units like wheel_radius in meters and speed in meters per second
-    results in radians per second rotational wheel speed.
+    """\u63a8\u9032\u901f\u5ea6\u3092\u30db\u30a4\u30fc\u30eb\u306e\u8ee2\u901f\u306b\u5909\u63db\u3059\u308b\u3002
 
-    @wheel_radius:float radius of wheel in same distance units as speed
-    @speed:float speed in distance units compatible with radius
-    @return:float wheel's rotational speed in radians per second
+    Args:
+        wheel_radius (float): \u8eca\u8f2a\u306e\u534a\u5f84\u3002
+        speed (float): \u540c\u3058\u5358\u4f4d\u306e\u901f\u5ea6\u5024\u3002
+
+    Returns:
+        float: \u8ee2\u79d2\u5358\u4f4d\u306e\u30db\u30a4\u30fc\u30eb\u8ee2\u901f\u3002
     """
     return speed / wheel_radius
 
 
 def differential_steering(throttle: float, steering: float, steering_zero: float = 0) -> Tuple[float, float]:
-        """
-        Turn steering angle and speed/throttle into 
-        left and right wheel speeds/throttle.
-        This basically slows down one wheel by the steering value
-        while leaving the other wheel at the desired throttle.
-        So, except for the case where the steering is zero (going straight forward),
-        the effective throttle is low than the requested throttle.  
-        This is different than car-like vehicles, where the effective
-        forward throttle is not affected by the steering angle.
-        This is is NOT inverse kinematics; it is appropriate for managing throttle
-        when a user is driving the car (so the user is the controller)
-        This is the algorithm used by TwoWheelSteeringThrottle.
+        """\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u89d2\u3068\u30b9\u30ed\u30c3\u30c8\u30eb\u3092\u5de6\u53f3\u8eca\u8f2a\u306e\u901f\u5ea6\u306b\u5909\u63db\u3059\u308b\u3002
 
-        @Param throttle:float throttle or real speed; reverse < 0, 0 is stopped, forward > 0
-        @Param steering:float -1 to 1, -1 full left, 0 straight, 1 is full right
-        @Param steering_zero:float values abs(steering) <= steering_zero are considered zero.
+        \u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u5024\u306b\u5bfe\u5fdc\u3057\u3066\u7247\u5074\u306e\u8eca\u8f2a\u3092\u904b\u52d5\u7de9\u6162\u3055\u305b\u308b\u306e\u3067\u3001\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u7121\u3057\u4ee5\u5916\u306f\u76f8\u5bfe\u7684\u306b\u4f4e\u901f\u3068\u306a\u308b\u3002
+        \u3053\u308c\u306f\u53cd\u5f8c\u30ad\u30cd\u30de\u30c6\u30a3\u30af\u30b9\u3067\u306f\u306a\u304f\u3001\u30e6\u30fc\u30b6\u64cd\u4f5c\u6642\u306e\u30c8\u30e9\u30c3\u30d7\u5236\u5fa1\u306b\u9069\u3057\u3066\u3044\u308b\u3002
+
+        Args:
+            throttle (float): \u5b9f\u901f\u5ea6\u307e\u305f\u306f\u30b9\u30ed\u30c3\u30c8\u30eb\uff08-1\u304b\u30891\uff09。
+            steering (float): -1\u304c\u5de6\u30011\u304c\u53f3\u3092\u8868\u3059\u6b63\u898f\u5316\u5024。
+            steering_zero (float): \u3053\u306e\u5024\u4ee5\u4e0b\u306f\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u306a\u3057\u3068\u307f\u306a\u3059。
         """
         if not is_number_type(throttle):
-            logger.error("throttle must be a number")
+            logger.error("throttle \u306f\u6570\u5024\u3067\u3042\u308b\u3079\u304d")
             return 0, 0
         if throttle > 1 or throttle < -1:
-            logger.warn(f"throttle = {throttle}, but must be between 1(right) and -1(left)")
+            logger.warn(f"throttle = {throttle}, \u3067\u3059\u304c 1\u304b\u3089 -1 \u306e\u7bc4\u56f2\u3067\u3042\u308b\u3079\u304d")
         throttle = clamp(throttle, -1, 1)
 
         if not is_number_type(steering):
-            logger.error("steering must be a number")
+            logger.error("\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u306f\u6570\u5024\u3067\u306a\u3051\u308c\u3070\u306a\u308a\u307e\u305b\u3093")
             return 0, 0
         if steering > 1 or steering < -1:
-            logger.warn(f"steering = {steering}, but must be between 1(right) and -1(left)")
+            logger.warn(f"steering = {steering}, \u3067\u3059\u304c 1\u304b\u3089 -1 \u306e\u7bc4\u56f2\u3067\u3042\u308b\u3079\u304d")
         steering = clamp(steering, -1, 1)
 
         left_throttle = throttle
@@ -654,23 +608,20 @@ def differential_steering(throttle: float, steering: float, steering_zero: float
 
 
 class TwoWheelSteeringThrottle:
-    """
-    convert throttle and steering into individual
-    wheel throttles in a differential drive robot
-    @Param steering_zero:float values abs(steering) <= steering_zero are considered zero.
+    """\u30c7\u30d5\u30a1\u30ec\u30f3\u30b7\u30e3\u30eb\u8eca\u4e21\u3067\u30b9\u30ed\u30c3\u30c8\u30eb\u3068\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u3092\u500b\u5225\u306e\u8eca\u8f2a\u901f\u5ea6\u306b\u5909\u63db\u3059\u308b\u30d1\u30fc\u30c4\u3002
+
+    Args:
+        steering_zero (float): \u3053\u306e\u5024\u4ee5\u4e0b\u306e\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u306f0\u3068\u307f\u306a\u3059\u3002
     """
     def __init__(self, steering_zero: float = 0.01) -> None:
         if not is_number_type(steering_zero):
-            raise ValueError("steering_zero must be a number")
+            raise ValueError("steering_zero \u306f\u6570\u5024\u3067\u3042\u308b\u3079\u304d")
         if steering_zero > 1 or steering_zero < 0:
-            raise ValueError(f"steering_zero  {steering_zero}, but must be be between 1 and zero.")
+            raise ValueError(f"steering_zero {steering_zero} \u306f 1 \u304b\u3089 0 \u306e\u7bc4\u56f2\u3067\u3042\u308b\u3079\u304d")
         self.steering_zero = steering_zero
 
     def run(self, throttle, steering):
-        """
-        @Param throttle:float throttle or real speed; reverse < 0, 0 is stopped, forward > 0
-        @Param steering:float -1 to 1, -1 full left, 0 straight, 1 is full right
-        """
+        """\u30b9\u30ed\u30c3\u30c8\u30eb\u3068\u30b9\u30c6\u30a2\u30ea\u30f3\u30b0\u3092\u500b\u5225\u306e\u8eca\u8f2a\u901f\u5ea6\u306b\u5909\u63db\u3059\u308b."""
         return differential_steering(throttle, steering, self.steering_zero)
  
     def shutdown(self):

@@ -1,63 +1,90 @@
+import glob
 import logging
 import os
 import time
+
 import numpy as np
 from PIL import Image
-import glob
+
 from donkeycar.utils import rgb2gray
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+
 class CameraError(Exception):
     pass
 
+
 class BaseCamera:
+    """カメラ部品の基本クラス。"""
 
     def run_threaded(self):
+        """スレッド用に最新のフレームを返す。"""
         return self.frame
 
+
 class PiCamera(BaseCamera):
-    def __init__(self, image_w=160, image_h=120, image_d=3, framerate=20, vflip=False, hflip=False):
-        from picamera.array import PiRGBArray
+    """Raspberry Pi カメラモジュールを制御するクラス。"""
+
+    def __init__(
+        self,
+        image_w=160,
+        image_h=120,
+        image_d=3,
+        framerate=20,
+        vflip=False,
+        hflip=False,
+    ):
+        """PiCamera の初期化を行う。
+
+        Args:
+            image_w (int): 画像の幅。
+            image_h (int): 画像の高さ。
+            image_d (int): 画像のチャンネル数。
+            framerate (int): フレームレート。
+            vflip (bool): 垂直反転の有無。
+            hflip (bool): 水平反転の有無。
+        """
         from picamera import PiCamera
+        from picamera.array import PiRGBArray
 
         resolution = (image_w, image_h)
-        # initialize the camera and stream
-        self.camera = PiCamera() #PiCamera gets resolution (height, width)
+        # カメラとストリームを初期化
+        self.camera = PiCamera()  # PiCamera は (高さ, 幅) 順で解像度を受け取る
         self.camera.resolution = resolution
         self.camera.framerate = framerate
         self.camera.vflip = vflip
         self.camera.hflip = hflip
         self.rawCapture = PiRGBArray(self.camera, size=resolution)
-        self.stream = self.camera.capture_continuous(self.rawCapture,
-            format="rgb", use_video_port=True)
+        self.stream = self.camera.capture_continuous(
+            self.rawCapture, format="rgb", use_video_port=True
+        )
 
-        # initialize the frame and the variable used to indicate
-        # if the thread should be stopped
+        # フレームとスレッド停止フラグを初期化
         self.frame = None
         self.on = True
         self.image_d = image_d
 
-        # get the first frame or timeout
-        logger.info('PiCamera loaded...')
+        # 最初のフレームを取得するまで待機
+        logger.info("PiCamera をロードしました...")
         if self.stream is not None:
-            logger.info('PiCamera opened...')
-            warming_time = time.time() + 5  # quick after 5 seconds
+            logger.info("PiCamera をオープンしました...")
+            warming_time = time.time() + 5  # 5 秒後にタイムアウト
             while self.frame is None and time.time() < warming_time:
-                logger.info("...warming camera")
+                logger.info("...カメラをウォームアップ中")
                 self.run()
                 time.sleep(0.2)
 
             if self.frame is None:
-                raise CameraError("Unable to start PiCamera.")
+                raise CameraError("PiCamera を起動できません。")
         else:
-            raise CameraError("Unable to open PiCamera.")
-        logger.info("PiCamera ready.")
+            raise CameraError("PiCamera を開けません。")
+        logger.info("PiCamera の準備ができました。")
 
     def run(self):
-        # grab the frame from the stream and clear the stream in
-        # preparation for the next frame
+        """ストリームからフレームを取得し次のフレーム準備を行う。"""
+        # ストリームからフレームを取得し、次のフレームのためにバッファをクリア
         if self.stream is not None:
             f = next(self.stream)
             if f is not None:
@@ -69,15 +96,17 @@ class PiCamera(BaseCamera):
         return self.frame
 
     def update(self):
-        # keep looping infinitely until the thread is stopped
+        """スレッドが停止されるまでループし続ける。"""
+        # スレッドが停止されるまで無限ループ
         while self.on:
             self.run()
 
     def shutdown(self):
-        # indicate that the thread should be stopped
+        """カメラを停止しリソースを解放する。"""
+        # スレッド停止を通知
         self.on = False
-        logger.info('Stopping PiCamera')
-        time.sleep(.5)
+        logger.info("PiCamera を停止します")
+        time.sleep(0.5)
         self.stream.close()
         self.rawCapture.close()
         self.camera.close()
@@ -87,20 +116,31 @@ class PiCamera(BaseCamera):
 
 
 class Webcam(BaseCamera):
-    def __init__(self, image_w=160, image_h=120, image_d=3, framerate = 20, camera_index = 0):
-        #
-        # pygame is not installed by default.
-        # Installation on RaspberryPi (with env activated):
-        #
-        # sudo apt-get install libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0
-        # pip install pygame
-        #
+    """USB など汎用 Web カメラを利用するクラス。"""
+
+    def __init__(
+        self, image_w=160, image_h=120, image_d=3, framerate=20, camera_index=0
+    ):
+        """Web カメラの初期化を行う。
+
+        Note:
+            `pygame` はデフォルトではインストールされていません。RaspberryPi で使用する場合は次のコマンドを実行してください::
+
+                sudo apt-get install libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0
+                pip install pygame
+
+        Args:
+            image_w (int): 画像の幅。
+            image_h (int): 画像の高さ。
+            image_d (int): 画像のチャンネル数。
+            framerate (int): フレームレート。
+            camera_index (int): 使用するカメラのインデックス。
+        """
         super().__init__()
         self.cam = None
         self.framerate = framerate
 
-        # initialize variable used to indicate
-        # if the thread should be stopped
+        # スレッド停止フラグとして使う変数を初期化
         self.frame = None
         self.image_d = image_d
         self.image_w = image_w
@@ -110,16 +150,19 @@ class Webcam(BaseCamera):
         self.on = True
 
     def init_camera(self, image_w, image_h, image_d, camera_index=0):
+        """Web カメラを開いて設定する。"""
         try:
             import pygame
             import pygame.camera
         except ModuleNotFoundError as e:
-            logger.error("Unable to import pygame.  Try installing it:\n"
-                         "    sudo apt-get install libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0\n"
-                         "    pip install pygame")
+            logger.error(
+                "pygame をインポートできません。次を実行してインストールしてください:\n"
+                "    sudo apt-get install libsdl2-mixer-2.0-0 libsdl2-image-2.0-0 libsdl2-2.0-0\n"
+                "    pip install pygame"
+            )
             raise e
 
-        logger.info('Opening Webcam...')
+        logger.info("Web カメラを開いています...")
 
         self.resolution = (image_w, image_h)
 
@@ -129,49 +172,59 @@ class Webcam(BaseCamera):
             l = pygame.camera.list_cameras()
 
             if len(l) == 0:
-                raise CameraError("There are no cameras available")
+                raise CameraError("利用可能なカメラがありません")
 
-            logger.info(f'Available cameras {l}')
+            logger.info(f"利用可能なカメラ {l}")
             if camera_index < 0 or camera_index >= len(l):
-                raise CameraError(f"The 'CAMERA_INDEX={camera_index}' configuration in myconfig.py is out of range.")
+                raise CameraError(
+                    f"myconfig.py の 'CAMERA_INDEX={camera_index}' の値が範囲外です"
+                )
 
             self.cam = pygame.camera.Camera(l[camera_index], self.resolution, "RGB")
             self.cam.start()
 
-            logger.info(f'Webcam opened at {l[camera_index]} ...')
-            warming_time = time.time() + 5  # quick after 5 seconds
+            logger.info(f"Web カメラ {l[camera_index]} をオープンしました...")
+            warming_time = time.time() + 5  # 5 秒後にタイムアウト
             while self.frame is None and time.time() < warming_time:
-                logger.info("...warming camera")
+                logger.info("...カメラをウォームアップ中")
                 self.run()
                 time.sleep(0.2)
 
             if self.frame is None:
-                raise CameraError("Unable to start Webcam.\n"
-                                   "If more than one camera is available then"
-                                   " make sure your 'CAMERA_INDEX' is correct in myconfig.py")
+                raise CameraError(
+                    'Web カメラを起動できません。\n複数のカメラがある場合は myconfig.py の "CAMERA_INDEX" が正しいか確認してください'
+                )
 
         except CameraError:
             raise
         except Exception as e:
-            raise CameraError("Unable to open Webcam.\n"
-                               "If more than one camera is available then"
-                               " make sure your 'CAMERA_INDEX' is correct in myconfig.py") from e
-        logger.info("Webcam ready.")
+            raise CameraError(
+                'Web カメラを開けません。\n複数のカメラがある場合は myconfig.py の "CAMERA_INDEX" が正しいか確認してください'
+            ) from e
+        logger.info("Web カメラの準備ができました。")
 
     def run(self):
+        """カメラから画像を取得して返す。"""
         import pygame.image
+
         if self.cam.query_image():
             snapshot = self.cam.get_image()
             if snapshot is not None:
                 snapshot1 = pygame.transform.scale(snapshot, self.resolution)
-                self.frame = pygame.surfarray.pixels3d(pygame.transform.rotate(pygame.transform.flip(snapshot1, True, False), 90))
+                self.frame = pygame.surfarray.pixels3d(
+                    pygame.transform.rotate(
+                        pygame.transform.flip(snapshot1, True, False), 90
+                    )
+                )
                 if self.image_d == 1:
                     self.frame = rgb2gray(frame)
 
         return self.frame
 
-    def update(self):	
-        from datetime import datetime, timedelta
+    def update(self):
+        """設定されたフレームレートになるよう待機しつつフレームを更新する。"""
+        from datetime import datetime
+
         while self.on:
             start = datetime.now()
             self.run()
@@ -180,37 +233,77 @@ class Webcam(BaseCamera):
             if s > 0:
                 time.sleep(s)
 
-
     def run_threaded(self):
+        """最新のフレームを返す。"""
         return self.frame
 
     def shutdown(self):
-        # indicate that the thread should be stopped
+        """カメラを停止しリソースを解放する。"""
+        # スレッド停止を通知
         self.on = False
         if self.cam:
-            logger.info('stopping Webcam')
+            logger.info("Web カメラを停止します")
             self.cam.stop()
             self.cam = None
-        time.sleep(.5)
+        time.sleep(0.5)
 
 
 class CSICamera(BaseCamera):
-    '''
-    Camera for Jetson Nano IMX219 based camera
-    Credit: https://github.com/feicccccccc/donkeycar/blob/dev/donkeycar/parts/camera.py
-    gstreamer init string from https://github.com/NVIDIA-AI-IOT/jetbot/blob/master/jetbot/camera.py
-    '''
-    def gstreamer_pipeline(self, capture_width=3280, capture_height=2464, output_width=224, output_height=224, framerate=21, flip_method=0) :   
-        return 'nvarguscamerasrc ! video/x-raw(memory:NVMM), width=%d, height=%d, format=(string)NV12, framerate=(fraction)%d/1 ! nvvidconv flip-method=%d ! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx ! videoconvert ! appsink' % (
-                capture_width, capture_height, framerate, flip_method, output_width, output_height)
-    
-    def __init__(self, image_w=160, image_h=120, image_d=3, capture_width=3280, capture_height=2464, framerate=60, gstreamer_flip=0):
-        '''
-        gstreamer_flip = 0 - no flip
-        gstreamer_flip = 1 - rotate CCW 90
-        gstreamer_flip = 2 - flip vertically
-        gstreamer_flip = 3 - rotate CW 90
-        '''
+    """Jetson Nano 用 IMX219 カメラを扱うクラス。"""
+
+    def gstreamer_pipeline(
+        self,
+        capture_width=3280,
+        capture_height=2464,
+        output_width=224,
+        output_height=224,
+        framerate=21,
+        flip_method=0,
+    ):
+        """GStreamer パイプライン文字列を生成する。"""
+        return (
+            "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=%d, height=%d, "
+            "format=(string)NV12, framerate=(fraction)%d/1 ! nvvidconv flip-method=%d "
+            "! nvvidconv ! video/x-raw, width=(int)%d, height=(int)%d, format=(string)BGRx "
+            "! videoconvert ! appsink"
+        ) % (
+            capture_width,
+            capture_height,
+            framerate,
+            flip_method,
+            output_width,
+            output_height,
+        )
+
+    def __init__(
+        self,
+        image_w=160,
+        image_h=120,
+        image_d=3,
+        capture_width=3280,
+        capture_height=2464,
+        framerate=60,
+        gstreamer_flip=0,
+    ):
+        """CSI カメラを初期化する。
+
+        Args:
+            image_w (int): 画像の幅。
+            image_h (int): 画像の高さ。
+            image_d (int): 画像のチャンネル数。
+            capture_width (int): キャプチャ解像度の幅。
+            capture_height (int): キャプチャ解像度の高さ。
+            framerate (int): フレームレート。
+            gstreamer_flip (int): 回転・反転設定。
+
+        Note:
+            ``gstreamer_flip`` の値は次の通り::
+
+                0 - 反転なし
+                1 - 反時計回りに 90 度回転
+                2 - 垂直反転
+                3 - 時計回りに 90 度回転
+        """
         self.w = image_w
         self.h = image_h
         self.flip_method = gstreamer_flip
@@ -222,9 +315,10 @@ class CSICamera(BaseCamera):
         self.running = True
 
     def init_camera(self):
+        """カメラとストリームを初期化する。"""
         import cv2
 
-        # initialize the camera and stream
+        # カメラとストリームを初期化
         self.camera = cv2.VideoCapture(
             self.gstreamer_pipeline(
                 capture_width=self.capture_width,
@@ -232,56 +326,77 @@ class CSICamera(BaseCamera):
                 output_width=self.w,
                 output_height=self.h,
                 framerate=self.framerate,
-                flip_method=self.flip_method),
-            cv2.CAP_GSTREAMER)
+                flip_method=self.flip_method,
+            ),
+            cv2.CAP_GSTREAMER,
+        )
 
         if self.camera and self.camera.isOpened():
-            logger.info('CSICamera opened...')
-            warming_time = time.time() + 5  # quick after 5 seconds
+            logger.info("CSI カメラをオープンしました...")
+            warming_time = time.time() + 5  # 5 秒後にタイムアウト
             while self.frame is None and time.time() < warming_time:
-                logger.info("...warming camera")
+                logger.info("...カメラをウォームアップ中")
                 self.poll_camera()
                 time.sleep(0.2)
 
             if self.frame is None:
-                raise RuntimeError("Unable to start CSICamera.")
+                raise RuntimeError("CSI カメラを起動できません。")
         else:
-            raise RuntimeError("Unable to open CSICamera.")
-        logger.info("CSICamera ready.")
+            raise RuntimeError("CSI カメラを開けません。")
+        logger.info("CSI カメラの準備ができました。")
 
     def update(self):
+        """フレームを継続的に取得する。"""
         while self.running:
             self.poll_camera()
 
     def poll_camera(self):
+        """カメラからデータを取得して RGB 形式に変換する。"""
         import cv2
-        self.ret , frame = self.camera.read()
+
+        self.ret, frame = self.camera.read()
         if frame is not None:
             self.frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     def run(self):
+        """フレームを取得して返す。"""
         self.poll_camera()
         return self.frame
 
     def run_threaded(self):
+        """最新のフレームを返す。"""
         return self.frame
-    
+
     def shutdown(self):
+        """カメラを停止しリソースを解放する。"""
         self.running = False
-        logger.info('Stopping CSICamera')
-        time.sleep(.5)
-        del(self.camera)
+        logger.info("CSI カメラを停止します")
+        time.sleep(0.5)
+        del self.camera
 
 
 class V4LCamera(BaseCamera):
-    '''
-    uses the v4l2capture library from this fork for python3 support: https://github.com/atareao/python3-v4l2capture
-    sudo apt-get install libv4l-dev
-    cd python3-v4l2capture
-    python setup.py build
-    pip install -e .
-    '''
-    def __init__(self, image_w=160, image_h=120, image_d=3, framerate=20, dev_fn="/dev/video0", fourcc='MJPG'):
+    """v4l2capture ライブラリを利用したカメラクラス。"""
+
+    def __init__(
+        self,
+        image_w=160,
+        image_h=120,
+        image_d=3,
+        framerate=20,
+        dev_fn="/dev/video0",
+        fourcc="MJPG",
+    ):
+        """V4L2 カメラを初期化する。
+
+        Args:
+            image_w (int): 画像の幅。
+            image_h (int): 画像の高さ。
+            image_d (int): 画像のチャンネル数。
+            framerate (int): フレームレート。
+            dev_fn (str): デバイスファイル名。
+            fourcc (str): フォーマット指定子。
+        """
 
         self.running = True
         self.frame = None
@@ -291,98 +406,106 @@ class V4LCamera(BaseCamera):
         self.fourcc = fourcc
 
     def init_video(self):
+        """v4l2 デバイスを初期化する。"""
         import v4l2capture
 
         self.video = v4l2capture.Video_device(self.dev_fn)
 
-        # Suggest an image size to the device. The device may choose and
-        # return another size if it doesn't support the suggested one.
-        self.size_x, self.size_y = self.video.set_format(self.image_w, self.image_h, fourcc=self.fourcc)
+        # デバイスへ画像サイズを提案。サポートしていない場合は別のサイズが返される。
+        self.size_x, self.size_y = self.video.set_format(
+            self.image_w, self.image_h, fourcc=self.fourcc
+        )
 
-        logger.info("V4L camera granted %d, %d resolution." % (self.size_x, self.size_y))
+        logger.info(
+            "V4L カメラが %d x %d の解像度を受け入れました" % (self.size_x, self.size_y)
+        )
 
-        # Create a buffer to store image data in. This must be done before
-        # calling 'start' if v4l2capture is compiled with libv4l2. Otherwise
-        # raises IOError.
+        # バッファを作成する。libv4l2 でコンパイルされた場合 'start' 前に必要。
         self.video.create_buffers(30)
 
-        # Send the buffer to the device. Some devices require this to be done
-        # before calling 'start'.
+        # 一部のデバイスでは 'start' 前にバッファをキューする必要がある。
         self.video.queue_all_buffers()
 
-        # Start the device. This lights the LED if it's a camera that has one.
+        # デバイスを開始。LED 付きカメラなら点灯する。
         self.video.start()
 
     def update(self):
+        """連続的にフレームを読み込む。"""
         import select
+
         from donkeycar.parts.image import JpgToImgArr
 
         self.init_video()
         jpg_conv = JpgToImgArr()
 
         while self.running:
-            # Wait for the device to fill the buffer.
+            # デバイスがバッファを満たすまで待機
             select.select((self.video,), (), ())
             image_data = self.video.read_and_queue()
             self.frame = jpg_conv.run(image_data)
 
     def shutdown(self):
+        """カメラを停止する。"""
         self.running = False
         time.sleep(0.5)
 
 
 class MockCamera(BaseCamera):
-    '''
-    Fake camera. Returns only a single static frame
-    '''
+    """単一の静止画像のみを返すモックカメラ。"""
+
     def __init__(self, image_w=160, image_h=120, image_d=3, image=None):
+        """モックカメラを初期化する。"""
         if image is not None:
             self.frame = image
         else:
-            self.frame = np.array(Image.new('RGB', (image_w, image_h)))
+            self.frame = np.array(Image.new("RGB", (image_w, image_h)))
 
     def update(self):
+        """何もしない。"""
         pass
 
     def shutdown(self):
+        """何もしない。"""
         pass
 
 
 class ImageListCamera(BaseCamera):
-    '''
-    Use the images from a tub as a fake camera output
-    '''
-    def __init__(self, path_mask='~/mycar/data/**/images/*.jpg'):
+    """tub 内の画像をカメラ出力として利用するクラス。"""
+
+    def __init__(self, path_mask="~/mycar/data/**/images/*.jpg"):
+        """画像ファイル群を読み込み順に返す。
+
+        Args:
+            path_mask (str): 画像ファイルを検索するパスのマスク。
+        """
         self.image_filenames = glob.glob(os.path.expanduser(path_mask), recursive=True)
-    
+
         def get_image_index(fnm):
-            sl = os.path.basename(fnm).split('_')
+            sl = os.path.basename(fnm).split("_")
             return int(sl[0])
 
-        '''
-        I feel like sorting by modified time is almost always
-        what you want. but if you tared and moved your data around,
-        sometimes it doesn't preserve a nice modified time.
-        so, sorting by image index works better, but only with one path.
-        '''
+        """更新日時ではなく画像番号でソートした方が適切な場合が多い。"""
         self.image_filenames.sort(key=get_image_index)
-        #self.image_filenames.sort(key=os.path.getmtime)
+        # self.image_filenames.sort(key=os.path.getmtime)
         self.num_images = len(self.image_filenames)
-        logger.info('%d images loaded.' % self.num_images)
-        logger.info( self.image_filenames[:10])
+        logger.info("%d 枚の画像を読み込みました" % self.num_images)
+        logger.info(self.image_filenames[:10])
         self.i_frame = 0
         self.frame = None
         self.update()
 
     def update(self):
+        """何もしない。"""
         pass
 
-    def run_threaded(self):        
+    def run_threaded(self):
+        """画像を順番に読み込み NumPy 配列で返す。"""
         if self.num_images > 0:
             self.i_frame = (self.i_frame + 1) % self.num_images
-            self.frame = Image.open(self.image_filenames[self.i_frame]) 
+            self.frame = Image.open(self.image_filenames[self.i_frame])
 
         return np.asarray(self.frame)
 
     def shutdown(self):
+        """何もしない。"""
         pass

@@ -16,15 +16,13 @@ class UnicycleDistance:
         if is_number_type(left) and is_number_type(right):
             return (left + right) / 2.0
         else:
-            logger.error("left and right must be floats")
+            logger.error("left と right は浮動小数点でなければなりません")
         return 0.0
 
 
 class BicyclePose:
-    """
-    Part that integrates encoder+tachometer+odometer+kinematics
-    for the purposes of estimating the pose of a car-like vehicle over time.
-    """
+    """エンコーダ、タコメータ、オドメータ、キネマティクスを統合し、
+    車両(自動車型)の姿勢を時間経過で推定するパーツ。"""
     def __init__(self, cfg, poll_delay_secs:float=0):
         from donkeycar.parts.serial_port import SerialPort
         from donkeycar.parts.tachometer import (Tachometer, SerialEncoder,
@@ -42,7 +40,7 @@ class BicyclePose:
         self.bicycle = None
         self.Running = False
 
-        self.inputs = (0, 0)  # (throttle, steering)
+        self.inputs = (0, 0)  # (スロットル, ステアリング)
         self.reading = (0, 0, 0, 0, 0, 0, 0, 0, None)
 
         if cfg.ENCODER_TYPE == "GPIO":
@@ -55,7 +53,7 @@ class BicyclePose:
         elif cfg.ENCODER_TYPE.upper() == "MOCK":
             self.encoder = MockEncoder(cfg.MOCK_TICKS_PER_SECOND)
         else:
-            print("No supported encoder found")
+            print("対応しているエンコーダが見つかりません")
 
         if self.encoder:
             self.tachometer = Tachometer(
@@ -75,7 +73,7 @@ class BicyclePose:
             self.bicycle = Bicycle(cfg.WHEEL_BASE, cfg.ODOM_DEBUG)
             self.running = True
         else:
-            logger.error("Unable to initialize BicyclePose part")
+            logger.error("BicyclePose パーツを初期化できません")
 
     def poll(self, timestamp=None):
         if self.running:
@@ -89,15 +87,16 @@ class BicyclePose:
                 self.reading = self.bicycle.run(distance, steering_angle, timestamp)
 
     def update(self):
-        """
-        This will get called on it's own thread.
-        throttle: sign of throttle is use used to determine direction.
-        timestamp: timestamp for update or None to use current time.
-                   This is useful for creating deterministic tests.
+        """別スレッドから呼び出される。
+
+        Args:
+            throttle: スロットルの符号で進行方向を判断する。
+            timestamp: 更新のタイムスタンプ。``None`` の場合は現在時刻を使用する。
+                テストを再現性のあるものにするのに役立つ。
         """
         while self.running:
             self.poll()
-            time.sleep(self.poll_delay_secs)  # give other threads time
+            time.sleep(self.poll_delay_secs)  # 他のスレッドに時間を与える
 
     def run_threaded(self, throttle:float=0.0, steering:float=0.0, timestamp:float=None) -> Tuple[float, float, float, float, float, float, float, float, float]:
         if self.running and self.tachometer:
@@ -128,18 +127,15 @@ class BicyclePose:
 
 
 class UnicyclePose:
-    """
-    Part that integrates encoders+tachometers+odometers+kinematics
-    for the purposes of estimating the pose of a
-    differential drive vehicle over time.
-    """
+    """複数のエンコーダ、タコメータ、オドメータ、キネマティクスを統合し、
+    差動駆動車両の姿勢を時間経過で推定するパーツ。"""
     def __init__(self, cfg, poll_delay_secs:float=0):
         from donkeycar.parts.serial_port import SerialPort
         from donkeycar.parts.tachometer import (SerialEncoder,
                                                 GpioEncoder, EncoderChannel)
         from donkeycar.parts.odometer import Odometer
 
-        # distance_per_revolution = cfg.ENCODER_PPR * cfg.MM_PER_TICK / 1000
+        # 1回転あたりの移動距離 = cfg.ENCODER_PPR * cfg.MM_PER_TICK / 1000
         distance_per_revolution = cfg.WHEEL_RADIUS * 2 * 3.141592653589793
 
         self.poll_delay_secs = poll_delay_secs
@@ -150,7 +146,7 @@ class UnicyclePose:
         self.odometer = None
         self.unicycle = None
 
-        self.inputs = (0, 0)  # (left_throttle, right_throttle)
+        self.inputs = (0, 0)  # (左スロットル, 右スロットル)
         self.reading = (0, 0, 0, 0, 0, 0, 0, 0, None)
 
         if cfg.ENCODER_TYPE == "GPIO":
@@ -175,7 +171,7 @@ class UnicyclePose:
                 MockEncoder(cfg.MOCK_TICKS_PER_SECOND),
             ]
         else:
-            print("No supported encoder found")
+            print("対応しているエンコーダが見つかりません")
 
         if self.encoder:
             self.tachometer = [
@@ -226,15 +222,16 @@ class UnicyclePose:
                 self.reading = self.unicycle.run(left_distance, right_distance, right_timestamp)
 
     def update(self):
-        """
-        This will get called on it's own thread.
-        throttle: sign of throttle is use used to determine direction.
-        timestamp: timestamp for update or None to use current time.
-                   This is useful for creating deterministic tests.
+        """別スレッドから呼び出される。
+
+        Args:
+            throttle: スロットルの符号で進行方向を判断する。
+            timestamp: 更新のタイムスタンプ。``None`` の場合は現在時刻を使用する。
+                テストを再現性のあるものにするのに役立つ。
         """
         while self.running:
             self.poll()
-            time.sleep(self.poll_delay_secs)  # give other threads time
+            time.sleep(self.poll_delay_secs)  # 他のスレッドに時間を与える
 
     def run_threaded(self, throttle:float=0.0, steering:float=0.0, timestamp:float=None) -> Tuple[float, float, float, float, float, float, float, float, float]:
         if self.running and self.tachometer:

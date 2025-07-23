@@ -1,3 +1,8 @@
+"""Tub v2 モジュール。
+
+センサー データの保存および操作を行うクラスを提供する。
+"""
+
 import atexit
 import os
 import time
@@ -11,13 +16,23 @@ from donkeycar.parts.datastore_v2 import Manifest, ManifestIterator
 
 
 class Tub(object):
-    """
-    A datastore to store sensor data in a key, value format. \n
-    Accepts str, int, float, image_array, image, and array data types.
+    """センサー データをキーと値の形式で保存するデータストア。
+
+    str、int、float、image_array、image、array の各データ型を扱う。
     """
 
     def __init__(self, base_path, inputs=[], types=[], metadata=[],
                  max_catalog_len=1000, read_only=False):
+        """コンストラクタ。
+
+        Args:
+            base_path: Tub を保存するベースディレクトリ。
+            inputs: 入力項目名のリスト。
+            types: 各入力のデータ型。
+            metadata: 追加メタデータのリスト。
+            max_catalog_len: マニフェストの最大長。
+            read_only: 読み込み専用モードかどうか。
+        """
         self.base_path = base_path
         self.images_base_path = os.path.join(self.base_path, Tub.images())
         self.inputs = inputs
@@ -27,14 +42,12 @@ class Tub(object):
                                  metadata=metadata, max_len=max_catalog_len,
                                  read_only=read_only)
         self.input_types = dict(zip(self.inputs, self.types))
-        # Create images folder if necessary
+        # 必要に応じて images フォルダを作成する
         if not os.path.exists(self.images_base_path):
             os.makedirs(self.images_base_path, exist_ok=True)
 
     def write_record(self, record=None):
-        """
-        Can handle various data types including images.
-        """
+        """画像を含むさまざまなデータ型を処理できる。"""
         contents = dict()
         for key, value in record.items():
             if value is None:
@@ -44,7 +57,7 @@ class Tub(object):
             else:
                 input_type = self.input_types[key]
                 if input_type == 'float':
-                    # Handle np.float() types gracefully
+                    # np.float() 型を適切に処理する
                     contents[key] = float(value)
                 elif input_type == 'str':
                     contents[key] = value
@@ -57,21 +70,21 @@ class Tub(object):
                 elif input_type == 'list' or input_type == 'vector':
                     contents[key] = list(value)
                 elif input_type == 'image_array':
-                    # Handle image array
+                    # 画像配列を処理する
                     image = Image.fromarray(np.uint8(value))
                     name = Tub._image_file_name(self.manifest.current_index, key)
                     image_path = os.path.join(self.images_base_path, name)
                     image.save(image_path)
                     contents[key] = name
                 elif input_type == 'gray16_array':
-                    # save np.uint16 as a 16bit png
+                    # np.uint16 を 16bit PNG として保存する
                     image = Image.fromarray(np.uint16(value))
                     name = Tub._image_file_name(self.manifest.current_index, key, ext='.png')
                     image_path = os.path.join(self.images_base_path, name)
                     image.save(image_path)
                     contents[key]=name
 
-        # Private properties
+        # プライベートなプロパティ
         contents['_timestamp_ms'] = int(round(time.time() * 1000))
         contents['_index'] = self.manifest.current_index
         contents['_session_id'] = self.manifest.session_id
@@ -82,7 +95,7 @@ class Tub(object):
         self.manifest.delete_records(record_indexes)
 
     def delete_last_n_records(self, n):
-        # build ordered list of non-deleted indexes
+        # 削除されていないインデックスを順序付きで作成する
         all_alive_indexes = sorted(set(range(self.manifest.current_index))
                                    - self.manifest.deleted_indexes)
         to_delete_indexes = all_alive_indexes[-n:]
@@ -108,21 +121,19 @@ class Tub(object):
     def _image_file_name(cls, index, key, extension='.jpg'):
         key_prefix = key.replace('/', '_')
         name = '_'.join([str(index), key_prefix, extension])
-        # Return relative paths to maintain portability
+        # ポータビリティ確保のため相対パスを返す
         return name
 
 
 class TubWriter(object):
-    """
-    A Donkey part, which can write records to the datastore.
-    """
+    """データストアへレコードを書き込む Donkey パーツ。"""
     def __init__(self, base_path, inputs=[], types=[], metadata=[],
                  max_catalog_len=1000):
         self.tub = Tub(base_path, inputs, types, metadata, max_catalog_len)
 
     def run(self, *args):
         assert len(self.tub.inputs) == len(args), \
-            f'Expected {len(self.tub.inputs)} inputs but received {len(args)}'
+            f'入力は {len(self.tub.inputs)} 個必要ですが、{len(args)} 個渡されました'
         record = dict(zip(self.tub.inputs, args))
         self.tub.write_record(record)
         return self.tub.manifest.current_index
@@ -138,35 +149,40 @@ class TubWriter(object):
 
 
 class TubWiper:
-    """
-    Donkey part which deletes a bunch of records from the end of tub.
-    This allows to remove bad data already during recording. As this gets called
-    in the vehicle loop the deletion runs only once in each continuous
-    activation. A new execution requires to release of the input trigger. The
-    action could result in a multiple number of executions otherwise.
+    """Tub の末尾から複数のレコードを削除する Donkey パーツ。
+
+    録画中に不正なデータを取り除くために使う。車両ループで呼び出される
+    ため、削除は連続したアクティベーション中 1 回のみ実行される。
+    再度実行するには入力トリガーを一度解除する必要があり、さもないと複
+    数回実行される可能性がある。
     """
     def __init__(self, tub, num_records=20):
-        """
-        :param tub: tub to operate on
-        :param num_records: number or records to delete
+        """コンストラクタ。
+
+        Args:
+            tub: 操作対象の tub。
+            num_records: 削除するレコード数。
         """
         self._tub = tub
         self._num_records = num_records
         self._active_loop = False
 
     def run(self, is_delete):
+        """車両ループ内で呼び出されるメソッド。
+
+        トリガーが ``False`` から ``True`` に変わったときにのみレコードを
+        削除する。
+
+        Args:
+            is_delete: 呼び出し側が削除をトリガーしたかどうか。
         """
-        Method in the vehicle loop. Delete records when trigger switches from
-        False to True only.
-        :param is_delete: if deletion has been triggered by the caller
-        """
-        # only run if input is true and debounced
+        # 入力が真でデバウンスされている場合のみ実行する
         if is_delete:
             if not self._active_loop:
-                # action command
+                # 実行コマンド
                 self._tub.delete_last_n_records(self._num_records)
-                # increase the loop counter
+                # ループカウンタを増やす
                 self._active_loop = True
         else:
-            # trigger released, reset active loop
+            # トリガーが解除されたらアクティブループをリセットする
             self._active_loop = False

@@ -1,27 +1,31 @@
 #!/usr/bin/env python3
-"""
-Scrits to read signals from Arduino and convert into steering and throttle outputs
-Arduino input signal range: 0 to 200
-Output range: -1.00 to 1.00
+"""Arduinoからの信号を読み取り、ステアリング(steering)とスロットル(throttle)の
+出力へ変換するスクリプト。
+
+Arduinoの入力信号範囲: 0 ～ 200。
+出力範囲: -1.00 ～ 1.00。
 """
 
 import serial
 import time
 
 class SerialController:
+    """Arduinoの信号から車両制御値を取得するシリアルコントローラ。"""
     def __init__(self):
-        print("Starting Serial Controller")
+        """インスタンスを初期化しシリアルポートを開く。"""
+        print("シリアルコントローラーを起動します")
 
         self.angle = 0.0
         self.throttle = 0.0
         self.mode = 'user'
         self.recording = False
-        self.serial = serial.Serial('/dev/ttyS0', 115200, timeout=1) #Serial port - laptop: 'COM3', Arduino: '/dev/ttyACM0'
+        self.serial = serial.Serial('/dev/ttyS0', 115200, timeout=1) # シリアルポート - ノートPC: 'COM3', Arduino: '/dev/ttyACM0'
 
 
     def update(self):
-        # delay on startup to avoid crashing
-        print("Warming Serial Controller")
+        """起動時に遅延し、シリアル入力を継続的に処理する。"""
+        # 起動直後のクラッシュを防ぐため待機
+        print("シリアルコントローラーを準備中")
         time.sleep(3)
 
         while True:
@@ -33,14 +37,16 @@ class SerialController:
                     self.throttle = (float(output[1])-1500)/500
                     if self.throttle > 0.01:
                         self.recording = True
-                        print("Recording")
+                        print("録画中")
                     else:
                         self.recording = False
                     time.sleep(0.01)
 
     def run(self, img_arr=None):
+        """スレッド化せずに現在の制御値を取得する。"""
         return self.run_threaded()
 
     def run_threaded(self, img_arr=None):
-        #print("Signal:", self.angle, self.throttle)
+        """最新のステアリング角度とスロットルを返す。"""
+        #print("信号:", self.angle, self.throttle)
         return self.angle, self.throttle, self.mode, self.recording

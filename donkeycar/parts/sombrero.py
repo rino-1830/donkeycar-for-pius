@@ -1,10 +1,9 @@
 class Sombrero:
-    '''
-    A pi hat developed by Adam Conway to manage power, pwm for a Donkeycar
-    This requires that GPIO 26 is brought low to enable the pwm out.
-    Because all GPIO modes have to be the same accross code, we use BOARD
-    mode, which is physical pin 37.
-    '''
+    """Adam Conwayが開発した、Donkeycarの電源管理とPWMを制御するPi Hat。
+
+    GPIO 26をLOWにしてPWM出力を有効化する必要があります。
+    GPIOのモードはコード全体で統一するため、物理ピン37に対応するBOARDモードを使用します。
+    """
 
     def __init__(self):
         try:
@@ -13,7 +12,7 @@ class Sombrero:
             GPIO.setmode(GPIO.BOARD)
             GPIO.setup(37, GPIO.OUT)
             GPIO.output(37, GPIO.LOW)
-            print("sombrero enabled")
+            print("ソンブレロを有効化しました")
         except:
             pass
 
@@ -22,6 +21,6 @@ class Sombrero:
             import RPi.GPIO as GPIO
 
             GPIO.cleanup()
-            print("sombrero disabled")
+            print("ソンブレロを無効化しました")
         except:
             pass

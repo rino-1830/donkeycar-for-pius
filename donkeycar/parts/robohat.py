@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Scripts for operating the RoboHAT MM1 by Robotics Masters with the Donkeycar
+Robotics Masters 製 RoboHAT MM1 を Donkeycar で操作するためのスクリプト。
 
 author: @wallarug (Cian Byrne) 2019
 contrib: @peterpanstechland 2019
 contrib: @sctse999 2020
 
-Note: To be used with code.py bundled in this repo. See donkeycar/contrib/robohat/code.py
+注: このリポジトリに同梱されている code.py と併せて使用すること。
+    ``donkeycar/contrib/robohat/code.py`` を参照。
 """
 
 import time
@@ -16,19 +17,19 @@ import donkeycar as dk
 try:
     import serial
 except ImportError:
-    print("PySerial not found.  Please install: pip install pyserial")
+    print("PySerial が見つかりません。 'pip install pyserial' を実行してください")
 
 logger = logging.getLogger(__name__)
 
 class RoboHATController:
-    '''
-    Driver to read signals from SAMD51 and convert into steering and throttle outputs
-    Input input signal range: 1000 to 2000
-    Output range: -1.00 to 1.00
-    '''
+    """SAMD51 からの信号を読み取りステアリングとスロットルへ変換するドライバ。
+
+    入力信号の範囲は ``1000`` ～ ``2000``。
+    出力範囲は ``-1.00`` ～ ``1.00``。
+    """
 
     def __init__(self, cfg, debug=False):
-        # standard variables
+        # 基本となる変数
         self.angle = 0.0
         self.throttle = 0.0
         self.mode = 'user'
@@ -46,9 +47,9 @@ class RoboHATController:
         try:
             self.serial = serial.Serial(cfg.MM1_SERIAL_PORT, 115200, timeout=1)
         except serial.SerialException:
-            print("Serial port not found!  Please enable: sudo raspi-config")
+            print("シリアルポートが見つかりません。 'sudo raspi-config' で有効化してください")
         except serial.SerialTimeoutException:
-            print("Serial connection timed out!")
+            print("シリアル接続がタイムアウトしました")
 
     def shutdown(self):
         try:
@@ -57,12 +58,10 @@ class RoboHATController:
             pass
 
     def read_serial(self):
-        '''
-        Read the rc controller value from serial port. Map the value into
-        steering and throttle
+        """シリアルポートから RC コントローラの値を読み取り、ステアリングとスロットルへ変換する。
 
-        Format ####,#### whereas the 1st number is steering and 2nd is throttle
-        '''
+        フォーマットは ``####,####`` で、最初の数値がステアリング、2 番目がスロットル。
+        """
         line = str(self.serial.readline().decode()).strip('\n').strip('\r')
 
         output = line.split(", ")
@@ -79,14 +78,14 @@ class RoboHATController:
 
 
                 if throttle_pwm >= self.STOPPED_PWM:
-                    # Scale down the input pwm (1500 - 2000) to our max forward
+                    # 入力 PWM (1500 - 2000) を最大前進値に合わせてスケーリング
                     throttle_pwm = dk.utils.map_range_float(throttle_pwm,
                                                                 1500, 2000,
                                                                 self.STOPPED_PWM,
                                                                 self.MAX_FORWARD )
-                    # print("remapping throttle_pwm from {} to {}".format(output[1], throttle_pwm))
+                    # print("throttle_pwm を {} から {} に再マッピング".format(output[1], throttle_pwm))
 
-                    # Go forward
+                    # 前進する
                     self.throttle = dk.utils.map_range_float(throttle_pwm,
                                                              self.STOPPED_PWM,
                                                              self.MAX_FORWARD,
@@ -98,19 +97,19 @@ class RoboHATController:
                                                                 self.STOPPED_PWM)
 
 
-                    # Go backward
+                    # 後退する
                     self.throttle = dk.utils.map_range_float(throttle_pwm,
                                                              self.MAX_REVERSE,
                                                              self.STOPPED_PWM,
                                                              -1.0, 0)
 
                 if angle_pwm >= self.STEERING_MID:
-                    # Turn Left
+                    # 左折
                     self.angle = dk.utils.map_range_float(angle_pwm,
                                                           2000, self.STEERING_MID,
                                                           -1, 0)
                 else:
-                    # Turn Right
+                    # 右折
                     self.angle = dk.utils.map_range_float(angle_pwm,
                                                           self.STEERING_MID, 1000,
                                                           0, 1)
@@ -123,51 +122,58 @@ class RoboHATController:
                     self.recording = self.throttle > self.DEAD_ZONE
                     if was_recording != self.recording:
                         self.recording_latch = self.recording
-                        logger.debug(f"JoystickController::on_throttle_changes() setting recording = {self.recording}")
+                        logger.debug(f"JoystickController::on_throttle_changes() 記録状態を {self.recording} に設定")
 
                 time.sleep(0.01)
 
     def update(self):
-        # delay on startup to avoid crashing
-        print("Warming serial port...")
+        # 起動直後のクラッシュを防ぐため少し待つ
+        print("シリアルポートをウォームアップ中...")
         time.sleep(3)
 
         while True:
             try:
                 self.read_serial()
             except:
-                print("MM1: Error reading serial input!")
+                print("MM1: シリアル入力の読み取りエラー")
                 break
 
     def run(self, img_arr=None, mode=None, recording=None):
-        """
-        :param img_arr: current camera image or None
-        :param mode: default user/mode
-        :param recording: default recording mode
+        """スレッド実行用メソッドを呼び出す。
+
+        Args:
+            img_arr: 現在のカメラ画像または ``None``。
+            mode: デフォルトの動作モード。
+            recording: デフォルトの録画モード。
         """
         return self.run_threaded(img_arr, mode, recording)
 
     def run_threaded(self, img_arr=None, mode=None, recording=None):
-        """
-        :param img_arr: current camera image
-        :param mode: default user/mode
-        :param recording: default recording mode
+        """RC 入力を処理して現在の状態を返す。
+
+        Args:
+            img_arr: 現在のカメラ画像。
+            mode: デフォルトの動作モード。
+            recording: デフォルトの録画モード。
+
+        Returns:
+            現在のステアリング値、スロットル値、モード、録画フラグ。
         """
         self.img_arr = img_arr
 
         #
-        # enforce defaults if they are not none.
+        # 引数が ``None`` でなければ既定値を上書きする
         #
         #
-        # enforce defaults if they are not none.
+        # 引数が ``None`` でなければ既定値を上書きする
         #
         if mode is not None:
             self.mode = mode
         if recording is not None and recording != self.recording:
-            logger.debug(f"RoboHATController::run_threaded() setting recording from default = {recording}")
+            logger.debug(f"RoboHATController::run_threaded() デフォルト値から記録状態を {recording} に設定")
             self.recording = recording
         if self.recording_latch is not None:
-            logger.debug(f"RoboHATController::run_threaded() setting recording from latch = {self.recording_latch}")
+            logger.debug(f"RoboHATController::run_threaded() ラッチ値から記録状態を {self.recording_latch} に設定")
             self.recording = self.recording_latch
             self.recording_latch = None
 
@@ -175,13 +181,13 @@ class RoboHATController:
 
 
 class RoboHATDriver:
-    """
-    PWM motor controller using Robo HAT MM1 boards.
-    This is developed by Robotics Masters
+    """Robo HAT MM1 ボードを利用した PWM モーターコントローラ。
+
+    Robotics Masters によって開発された。
     """
 
     def __init__(self, cfg, debug=False):
-        # Initialise the Robo HAT using the serial port
+        # シリアルポートを使って Robo HAT を初期化
         self.pwm = serial.Serial(cfg.MM1_SERIAL_PORT, 115200, timeout=1)
         self.MAX_FORWARD = cfg.MM1_MAX_FORWARD
         self.MAX_REVERSE = cfg.MM1_MAX_REVERSE
@@ -189,17 +195,16 @@ class RoboHATDriver:
         self.STEERING_MID = cfg.MM1_STEERING_MID
         self.debug = debug
 
-    """
-    Steering and throttle should range between -1.0 to 1.0. This function will
-    trim value great than 1.0 or less than 1.0
+    """ステアリングとスロットルは -1.0～1.0 の範囲でなければならない。
+    この関数は 1.0 を超える値や -1.0 未満の値を補正する。
     """
 
     def trim_out_of_bound_value(self, value):
         if value > 1:
-            print("MM1: Warning, value out of bound. Value = {}".format(value))
+            print("MM1: 警告 値が範囲外です: {}".format(value))
             return 1.0
         elif value < -1:
-            print("MM1: Warning, value out of bound. Value = {}".format(value))
+            print("MM1: 警告 値が範囲外です: {}".format(value))
             return -1.0
         else:
             return value
@@ -232,13 +237,13 @@ class RoboHATDriver:
                     print("output_steering=%d, output_throttle=%d" % (output_steering, output_throttle))
                 self.write_pwm(output_steering, output_throttle)
             else:
-                print(f"Warning: steering = {output_steering}, STEERING_MID = {self.STEERING_MID}")
-                print(f"Warning: throttle = {output_throttle}, MAX_FORWARD = {self.MAX_FORWARD}, STOPPED_PWM = {self.STOPPED_PWM}, MAX_REVERSE = {self.MAX_REVERSE}")
-                print("Not sending PWM value to MM1")
+                print(f"警告: steering = {output_steering}, STEERING_MID = {self.STEERING_MID}")
+                print(f"警告: throttle = {output_throttle}, MAX_FORWARD = {self.MAX_FORWARD}, STOPPED_PWM = {self.STOPPED_PWM}, MAX_REVERSE = {self.MAX_REVERSE}")
+                print("PWM 値を MM1 に送信しません")
 
         except OSError as err:
             print(
-                "Unexpected issue setting PWM (check wires to motor board): {0}".format(err))
+                "PWM 設定中に予期しない問題が発生しました (モーターボードへの配線を確認してください): {0}".format(err))
 
     def is_valid_pwm_value(self, value):
         if 1000 <= value <= 2000:

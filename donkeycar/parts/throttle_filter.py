@@ -1,14 +1,21 @@
 
 class ThrottleFilter(object):
-    '''
-    allow reverse to trigger automatic reverse throttle
-    '''
+    """リバース入力に応じて自動で逆スロットルを作動させるフィルタ。"""
 
     def __init__(self):
+        """インスタンスを初期化する。"""
         self.reverse_triggered = False
         self.last_throttle = 0.0
 
     def run(self, throttle_in):
+        """スロットル入力を処理し、自動逆転を制御する。
+
+        Args:
+            throttle_in (float | None): 入力スロットル値。
+
+        Returns:
+            float | None: 処理後のスロットル値。
+        """
         if throttle_in is None:
             return throttle_in
 
@@ -25,4 +32,5 @@ class ThrottleFilter(object):
         return throttle_out
 
     def shutdown(self):
+        """後処理は特に行わない。"""
         pass

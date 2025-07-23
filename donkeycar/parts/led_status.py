@@ -1,11 +1,17 @@
+"""LEDステータスを制御するためのGPIO操作モジュール。"""
+
 import time
 import RPi.GPIO as GPIO
 
 class LED:
-    ''' 
-    Toggle a GPIO pin for led control
-    '''
+    """GPIOピンを利用してLEDを制御するクラス。"""
     def __init__(self, pin):
+        """LEDに使用するGPIOピンを設定する。
+
+        Args:
+            pin (int): LEDに割り当てるGPIOピン番号。
+        """
+
         self.pin = pin
 
         GPIO.setmode(GPIO.BOARD)
@@ -14,19 +20,37 @@ class LED:
         self.on = False
 
     def toggle(self, condition):
+        """条件に応じてLEDをオンまたはオフにする。
+
+        Args:
+            condition (bool): Trueで点灯、Falseで消灯。
+        """
+
         if condition:
             GPIO.output(self.pin, GPIO.HIGH)
             self.on = True
         else:
             GPIO.output(self.pin, GPIO.LOW)
-            self.on = False            
+            self.on = False
 
     def blink(self, rate):
+        """指定した周期でLEDを点滅させる。
+
+        Args:
+            rate (float): 点滅周期(秒)。
+        """
+
         if time.time() - self.blink_changed > rate:
             self.toggle(not self.on)
             self.blink_changed = time.time()
 
     def run(self, blink_rate):
+        """点滅レートに基づいてLEDを制御する。
+
+        Args:
+            blink_rate (float): 0で消灯、正で点滅、負で点灯。
+        """
+
         if blink_rate == 0:
             self.toggle(False)
         elif blink_rate > 0:
@@ -35,21 +59,29 @@ class LED:
             self.toggle(True)
 
     def shutdown(self):
-        self.toggle(False)        
+        """LEDを消灯してGPIO設定を解除する。"""
+
+        self.toggle(False)
         GPIO.cleanup()
 
 
 class RGB_LED:
-    ''' 
-    Toggle a GPIO pin on at max_duty pwm if condition is true, off if condition is false.
-    Good for LED pwm modulated
-    '''
+    """RGB LEDをPWM制御するクラス。"""
     def __init__(self, pin_r, pin_g, pin_b, invert_flag=False):
+        """RGB LEDに使うGPIOピンを設定する。
+
+        Args:
+            pin_r (int): 赤色LEDのGPIOピン番号。
+            pin_g (int): 緑色LEDのGPIOピン番号。
+            pin_b (int): 青色LEDのGPIOピン番号。
+            invert_flag (bool, optional): 信号を反転させるかどうか。デフォルトはFalse。
+        """
+
         self.pin_r = pin_r
         self.pin_g = pin_g
         self.pin_b = pin_b
         self.invert = invert_flag
-        print('setting up gpio in board mode')
+        print('GPIOをボードモードで設定します')
         GPIO.setwarnings(False)
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(self.pin_r, GPIO.OUT)
@@ -72,6 +104,12 @@ class RGB_LED:
         self.on = False
 
     def toggle(self, condition):
+        """条件に応じてRGB LEDを点灯または消灯する。
+
+        Args:
+            condition (bool): Trueで点灯、Falseで消灯。
+        """
+
         if condition:
             r, g, b = self.rgb
             self.set_rgb_duty(r, g, b)
@@ -81,11 +119,23 @@ class RGB_LED:
             self.on = False
 
     def blink(self, rate):
+        """指定した周期でRGB LEDを点滅させる。
+
+        Args:
+            rate (float): 点滅周期(秒)。
+        """
+
         if time.time() - self.blink_changed > rate:
             self.toggle(not self.on)
             self.blink_changed = time.time()
 
     def run(self, blink_rate):
+        """点滅レートに基づいてRGB LEDを制御する。
+
+        Args:
+            blink_rate (float): 0で消灯、正で点滅、負で点灯。
+        """
+
         if blink_rate == 0:
             self.toggle(False)
         elif blink_rate > 0:
@@ -94,18 +144,30 @@ class RGB_LED:
             self.toggle(True)
 
     def set_rgb(self, r, g, b):
-        r = r if not self.invert else 100-r
-        g = g if not self.invert else 100-g
-        b = b if not self.invert else 100-b
+        """RGB LEDの色を設定する。
+
+        Args:
+            r (int): 赤のデューティ(0-100)。
+            g (int): 緑のデューティ(0-100)。
+            b (int): 青のデューティ(0-100)。
+        """
+
+        r = r if not self.invert else 100 - r
+        g = g if not self.invert else 100 - g
+        b = b if not self.invert else 100 - b
         self.rgb = (r, g, b)
         self.set_rgb_duty(r, g, b)
 
     def set_rgb_duty(self, r, g, b):
+        """PWMのデューティ比を直接設定する。"""
+
         self.pwm_r.ChangeDutyCycle(r)
         self.pwm_g.ChangeDutyCycle(g)
         self.pwm_b.ChangeDutyCycle(b)
 
     def shutdown(self):
+        """RGB LEDを消灯してGPIO設定を解除する。"""
+
         self.toggle(False)
         GPIO.cleanup()
 
@@ -117,7 +179,7 @@ if __name__ == "__main__":
     pin_g = int(sys.argv[2])
     pin_b = int(sys.argv[3])
     rate = float(sys.argv[4])
-    print('output pin', pin_r, pin_g, pin_b, 'rate', rate)
+    print('出力ピン', pin_r, pin_g, pin_b, 'レート', rate)
 
     p = RGB_LED(pin_r, pin_g, pin_b)
     
