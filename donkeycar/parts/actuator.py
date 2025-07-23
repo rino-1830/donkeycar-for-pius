@@ -161,7 +161,7 @@ class PCA9685:
         elif duty_cycle == 0:
             self.set_low()
         else:
-            # duty cycle is fraction of the 12 bits
+            # デューティ比は 12 ビット値の割合
             pulse = int(4096 * duty_cycle)
             try:
                 self.pwm.set_pwm(self.channel, 0, pulse)
@@ -377,17 +377,17 @@ class PWMThrottle:
 #
 @deprecated("JHat はフレームワークで未サポート・未ドキュメントです。将来のリリースで削除されます")
 class JHat:
-    ''' 
-    PWM motor controller using Teensy emulating PCA9685.
+    '''
+    Teensy を用いて PCA9685 をエミュレートする PWM モータコントローラ。
     '''
     def __init__(self, channel, address=0x40, frequency=60, busnum=None):
         logger.info("Hat を起動します")
         import Adafruit_PCA9685
         LED0_OFF_L = 0x08
-        # Initialise the PCA9685 using the default address (0x40).
+        # PCA9685 をデフォルトアドレス (0x40) で初期化
         if busnum is not None:
             from Adafruit_GPIO import I2C
-            # replace the get_bus function with our own
+            # get_bus 関数を独自実装に差し替える
             def get_bus():
                 return busnum
             I2C.get_default_bus = get_bus
@@ -396,7 +396,7 @@ class JHat:
         self.channel = channel
         self.register = LED0_OFF_L+4*channel
 
-        # we install our own write that is more efficient use of interrupts
+        # 割り込みをより効率的に使うため独自の write を登録
         self.pwm.set_pwm = self.set_pwm
         
     def set_pulse(self, pulse):
@@ -424,7 +424,7 @@ class JHatReader:
         import Adafruit_PCA9685
         self.pwm = Adafruit_PCA9685.PCA9685(address=address)
         self.pwm.set_pwm_freq(frequency)
-        self.register = 0 #i2c read doesn't take an address
+        self.register = 0 # I2C 読み出しではアドレスを指定しない
         self.steering = 0
         self.throttle = 0
         self.running = True
@@ -516,21 +516,21 @@ class Adafruit_DCMotor_Hat:
 
 
 #
-# Maestro Servo Controller support is on the block for removal
-# - it is not integrated into any templates
-# - It is not documented in the docs or otherwise
-# - It seems to require a separate AStar microcontroller for which there is no firmware included or referenced
-# If that can be addressed, then we can add Maestro support to the pin provide api in pins.py
-# so it can be used a source of TTL and PWM for the generalized motor drivers.
-# Perhaps the AStar controller is not integral to using this as a source of servo pulses in which
-# case it seems pretty straight forward to integrate this into pins.py and then delete this class.
+# Maestro Servo Controller のサポートは削除予定
+# - どのテンプレートにも統合されていない
+# - ドキュメントでも説明されていない
+# - 追加の AStar マイコンが必要とされるようだが対応ファームウェアが無い
+# これらが解決できれば pins.py のピン提供 API に Maestro 対応を追加し、
+# 汎用モータドライバの TTL/PWM ソースとして利用できる
+# AStar コントローラが必須でないなら pins.py へ統合してこのクラスを削除する方が簡単
 #
 @deprecated("この機能はフレームワークで未サポート・未ドキュメントです。将来のリリースで削除される可能性があります")
 class Maestro:
     '''
-    Pololu Maestro Servo controller
-    Use the MaestroControlCenter to set the speed & acceleration values to 0!
-    See https://www.pololu.com/docs/0J40/all
+    Pololu 製 Maestro サーボコントローラ。
+
+    MaestroControlCenter を使用して speed と acceleration を 0 に設定する。
+    詳細: https://www.pololu.com/docs/0J40/all
     '''
     import threading
 
@@ -556,10 +556,10 @@ class Maestro:
             Maestro.astar_device = serial.Serial('/dev/ttyACM2', 115200, timeout= 0.01)
 
     def set_pulse(self, pulse):
-        # Recalculate pulse width from the Adafruit values
-        w = pulse * (1 / (self.frequency * 4096)) # in seconds
-        w *= 1000 * 1000  # in microseconds
-        w *= 4  # in quarter microsenconds the maestro wants
+        # Adafruit の値からパルス幅を再計算
+        w = pulse * (1 / (self.frequency * 4096)) # 秒単位
+        w *= 1000 * 1000  # マイクロ秒単位
+        w *= 4  # Maestro が要求する 1/4 マイクロ秒単位
         w = int(w)
 
         with Maestro.maestro_lock:
@@ -622,7 +622,7 @@ class Maestro:
 @deprecated("この機能はフレームワークで未サポート・未ドキュメントです。将来のリリースで削除される可能性があります")
 class Teensy:
     '''
-    Teensy Servo controller
+    Teensy を用いたサーボコントローラ。
     '''
     import threading
 
@@ -648,9 +648,9 @@ class Teensy:
             Teensy.astar_device = serial.Serial('/dev/astar', 115200, timeout = 0.01)
 
     def set_pulse(self, pulse):
-        # Recalculate pulse width from the Adafruit values
-        w = pulse * (1 / (self.frequency * 4096)) # in seconds
-        w *= 1000 * 1000  # in microseconds
+        # Adafruit の値からパルス幅を再計算
+        w = pulse * (1 / (self.frequency * 4096)) # 秒単位
+        w *= 1000 * 1000  # マイクロ秒単位
 
         with Teensy.teensy_lock:
             Teensy.teensy_device.write(("%c %.1f\n" % (self.channel, w)).encode('ascii'))
@@ -977,24 +977,23 @@ class ServoBlaster(object):
         self.servoblaster.close()
 
 #
-# TODO: integrate ArduinoFirmata support into pin providers, then we can remove all of this code and use PulseController
+# TODO: ArduinoFirmata のサポートを pin プロバイダーに統合し、このコードを削除して
+#       PulseController を使えるようにする
 #
-# Arduino/Microcontroller PWM support.
-# Firmata is a specification for configuring general purpose microcontrollers remotey.
-# The implementatino for Arduino is used here.
+# Arduino/マイコンの PWM サポート。
+# Firmata は汎用マイコンを遠隔設定するための仕様で、ここでは Arduino 実装を利用する。
 #
-# See https://docs.donkeycar.com/parts/actuators/#arduino for how to set this up.
-# Firmata Protocol https://github.com/firmata/protocol
-# Arduino implementation https://github.com/firmata/arduino
+# セットアップ方法は https://docs.donkeycar.com/parts/actuators/#arduino を参照
+# Firmata プロトコル https://github.com/firmata/protocol
+# Arduino 実装 https://github.com/firmata/arduino
 #
-# NOTE: to create a general purpose InputPin/OutputPin/PwmPin with support for servo pulses between 1ms and 2ms
-#       with good resolution, it is likely we will need to create our own sketch based on the Arduino Firmata
-#       examples.  By default, analog write is not adequate to support servos; it is good for motor duty cycles
-#       but is poor for servos because of the low resolution and poor control of frequency.  So we need to
-#       use the Servo.h library and dynamically add a Servo instance to a pin when it is configured for
-#       analog output.  Further, we should use writeMicroseconds for output and so interpret values
-#       to the pin as microseconds for the on part of the pulse.  See the various flavors of examples
-#       in the Arduino Firmata repo linked above.
+# NOTE: 1ms〜2ms のサーボパルスを高解像度で扱える汎用 InputPin/OutputPin/PwmPin を
+#       作成するには、Arduino Firmata のサンプルを基に独自のスケッチを作成する
+#       必要があるかもしれない。デフォルトの analogWrite は解像度が低く周波数制御も
+#       不十分でサーボには向かない。そのため Servo.h ライブラリを用い、ピンをアナ
+#       ログ出力設定した際に Servo インスタンスを動的に追加して writeMicroseconds
+#       で出力し、値をパルスのオン時間[µs]として解釈する。詳細は上記 Arduino Firmata
+#       リポジトリの各種サンプルを参照。
 #
 @deprecated("将来のリリースでは Arduino サポートが pins.py に追加され、本クラスは削除されます")
 class ArduinoFirmata:

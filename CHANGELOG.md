@@ -1,5 +1,8 @@
 # 変更履歴
 
+## fix: 未翻訳コメント追加翻訳
+- `donkeycar/parts/actuator.py` の残っていた英語コメントと Docstring を日本語化
+
 ## ユーティリティ日本語化
 - `donkeycar/utilities` 配下のコメント、メッセージ、Docstring を日本語化
 
