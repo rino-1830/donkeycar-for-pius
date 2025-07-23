@@ -1,201 +1,198 @@
-"""
-CAR CONFIG
+"""車両設定を変更するためのモジュール。
 
-This file is read by your car application's manage.py script to change the car
-performance.
+このファイルはアプリケーションの ``manage.py`` スクリプトによって読み込まれ、
+車両の性能を設定します。
 
-EXMAPLE
+EXAMPLE
 -----------
 import dk
 cfg = dk.load_config(config_path='~/mycar/config.py')
 print(cfg.CAMERA_RESOLUTION)
-
 """
 
 
 import os
 
-#PATHS
+# パス
 CAR_PATH = PACKAGE_PATH = os.path.dirname(os.path.realpath(__file__))
 DATA_PATH = os.path.join(CAR_PATH, 'data')
 MODELS_PATH = os.path.join(CAR_PATH, 'models')
 
-#VEHICLE
-DRIVE_LOOP_HZ = 20      # the vehicle loop will pause if faster than this speed.
-MAX_LOOPS = None        # the vehicle loop can abort after this many iterations, when given a positive integer.
+# 車両
+DRIVE_LOOP_HZ = 20      # 車両ループがこの速度より速い場合に一時停止します。
+MAX_LOOPS = None        # 正の整数を指定するとこの回数でループを終了できます。
 
-#CAMERA
+# カメラ
 CAMERA_TYPE = "MOCK"   # (PICAM|WEBCAM|CVCAM|CSIC|V4L|D435|MOCK|IMAGE_LIST)
 IMAGE_W = 160
 IMAGE_H = 120
-IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
+IMAGE_DEPTH = 3         # 既定は RGB=3、モノクロにする場合は 1
 CAMERA_FRAMERATE = DRIVE_LOOP_HZ
 CAMERA_VFLIP = False
 CAMERA_HFLIP = False
-# For CSIC camera - If the camera is mounted in a rotated position, changing the below parameter will correct the output frame orientation
-CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => none , 4 => Flip horizontally, 6 => Flip vertically)
+# CSIC カメラ用 - カメラが回転して取り付けられている場合は下記パラメータを変更すると表示方向が補正されます
+CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => なし , 4 => 横反転, 6 => 縦反転)
 
-# For IMAGE_LIST camera
+# IMAGE_LIST カメラ用
 # PATH_MASK = "~/mycar/data/tub_1_20-03-12/*.jpg"
 
-#9865, over rides only if needed, ie. TX2..
-PCA9685_I2C_ADDR = 0x40     #I2C address, use i2cdetect to validate this number
-PCA9685_I2C_BUSNUM = None   #None will auto detect, which is fine on the pi. But other platforms should specify the bus num.
+#9865、必要な場合のみ上書きします（例: TX2）
+PCA9685_I2C_ADDR = 0x40     # I2C アドレス。i2cdetect で確認してください
+PCA9685_I2C_BUSNUM = None   # None なら自動検出。Pi ではこれで良いが他のプラットフォームではバス番号を指定
 
 #SSD1306_128_32
-USE_SSD1306_128_32 = False    # Enable the SSD_1306 OLED Display
-SSD1306_128_32_I2C_BUSNUM = 1 # I2C bus number
+USE_SSD1306_128_32 = False    # SSD_1306 OLED ディスプレイを使用するかどうか
+SSD1306_128_32_I2C_BUSNUM = 1 # I2C バス番号
 
-#DRIVETRAIN
-#These options specify which chasis and motor setup you are using. Most are using SERVO_ESC.
-#DC_STEER_THROTTLE uses HBridge pwm to control one steering dc motor, and one drive wheel motor
-#DC_TWO_WHEEL uses HBridge pwm to control two drive motors, one on the left, and one on the right.
-#SERVO_HBRIDGE_PWM use ServoBlaster to output pwm control from the PiZero directly to control steering, and HBridge for a drive motor.
-#PIGPIO_PWM uses Raspberrys internal PWM
+# ドライブトレイン
+# シャシーやモーター構成を選択します。多くの場合は ``SERVO_ESC`` を使用します。
+# ``DC_STEER_THROTTLE`` は HBridge PWM でステアリング用 DC モーターと駆動輪用モーターを制御します
+# ``DC_TWO_WHEEL`` は HBridge PWM で左右2つの駆動モーターを制御します
+# ``SERVO_HBRIDGE_PWM`` は ServoBlaster を用いて PiZero から直接ステアリングを制御し、HBridge で駆動モーターを制御します
+# ``PIGPIO_PWM`` は Raspberry Pi の内部 PWM を使用します
 DRIVE_TRAIN_TYPE = "MOCK" # I2C_SERVO|DC_STEER_THROTTLE|DC_TWO_WHEEL|DC_TWO_WHEEL_L298N|SERVO_HBRIDGE_PWM|PIGPIO_PWM|MM1|MOCK
 
-#STEERING
-STEERING_CHANNEL = 1            #channel on the 9685 pwm board 0-15
-STEERING_LEFT_PWM = 460         #pwm value for full left steering
-STEERING_RIGHT_PWM = 290        #pwm value for full right steering
+# ステアリング
+STEERING_CHANNEL = 1            # 9685 PWM ボードのチャンネル番号 (0-15)
+STEERING_LEFT_PWM = 460         # 左いっぱいの PWM 値
+STEERING_RIGHT_PWM = 290        # 右いっぱいの PWM 値
 
-#STEERING FOR PIGPIO_PWM
-STEERING_PWM_PIN = 13           #Pin numbering according to Broadcom numbers
-STEERING_PWM_FREQ = 50          #Frequency for PWM
-STEERING_PWM_INVERTED = False   #If PWM needs to be inverted
+# PIGPIO_PWM 用ステアリング設定
+STEERING_PWM_PIN = 13           # Broadcom 番号に基づくピン番号
+STEERING_PWM_FREQ = 50          # PWM 周波数
+STEERING_PWM_INVERTED = False   # PWM を反転させる必要がある場合に True
 
-#THROTTLE
-THROTTLE_CHANNEL = 0            #channel on the 9685 pwm board 0-15
-THROTTLE_FORWARD_PWM = 500      #pwm value for max forward throttle
-THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
-THROTTLE_REVERSE_PWM = 220      #pwm value for max reverse throttle
+# スロットル
+THROTTLE_CHANNEL = 0            # 9685 PWM ボードのチャンネル番号 (0-15)
+THROTTLE_FORWARD_PWM = 500      # 最大前進スロットルの PWM 値
+THROTTLE_STOPPED_PWM = 370      # 停止時の PWM 値
+THROTTLE_REVERSE_PWM = 220      # 最大後退スロットルの PWM 値
 
-#THROTTLE FOR PIGPIO_PWM
-THROTTLE_PWM_PIN = 18           #Pin numbering according to Broadcom numbers
-THROTTLE_PWM_FREQ = 50          #Frequency for PWM
-THROTTLE_PWM_INVERTED = False   #If PWM needs to be inverted
+# PIGPIO_PWM 用スロットル設定
+THROTTLE_PWM_PIN = 18           # Broadcom 番号に基づくピン番号
+THROTTLE_PWM_FREQ = 50          # PWM 周波数
+THROTTLE_PWM_INVERTED = False   # PWM を反転させる必要がある場合に True
 
-#DC_STEER_THROTTLE with one motor as steering, one as drive
-#these GPIO pinouts are only used for the DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE
+# DC_STEER_THROTTLE では 1 つのモーターをステアリング、もう 1 つを駆動用に使用します
+# 以下の GPIO ピンは ``DRIVE_TRAIN_TYPE=DC_STEER_THROTTLE`` のときのみ使用します
 HBRIDGE_PIN_LEFT = 18
 HBRIDGE_PIN_RIGHT = 16
 HBRIDGE_PIN_FWD = 15
 HBRIDGE_PIN_BWD = 13
 
-#DC_TWO_WHEEL - with two wheels as drive, left and right.
-#these GPIO pinouts are only used for the DRIVE_TRAIN_TYPE=DC_TWO_WHEEL
+# DC_TWO_WHEEL - 左右 2 輪を駆動として使用する場合
+# 以下の GPIO ピンは ``DRIVE_TRAIN_TYPE=DC_TWO_WHEEL`` のときのみ使用します
 HBRIDGE_PIN_LEFT_FWD = 18
 HBRIDGE_PIN_LEFT_BWD = 16
 HBRIDGE_PIN_RIGHT_FWD = 15
 HBRIDGE_PIN_RIGHT_BWD = 13
 
 
-#TRAINING
-#The DEFAULT_MODEL_TYPE will choose which model will be created at training time. This chooses
-#between different neural network designs. You can override this setting by passing the command
-#line parameter --type to the python manage.py train and drive commands.
+# 学習設定
+# ``DEFAULT_MODEL_TYPE`` はトレーニング時に作成されるモデルタイプを決定します。
+# さまざまなニューラルネットワーク設計から選択されます。 ``manage.py train`` や ``drive``
+# コマンドに ``--type`` パラメータを渡すことで上書きできます。
 DEFAULT_MODEL_TYPE = 'linear'   #(linear|categorical|tflite_linear|tensorrt_linear)
-BATCH_SIZE = 128                #how many records to use when doing one pass of gradient decent. Use a smaller number if your gpu is running out of memory.
-TRAIN_TEST_SPLIT = 0.8          #what percent of records to use for training. the remaining used for validation.
-MAX_EPOCHS = 100                #how many times to visit all records of your data
-SHOW_PLOT = True                #would you like to see a pop up display of final loss?
-VERBOSE_TRAIN = True            #would you like to see a progress bar with text during training?
-USE_EARLY_STOP = True           #would you like to stop the training if we see it's not improving fit?
-EARLY_STOP_PATIENCE = 5         #how many epochs to wait before no improvement
-MIN_DELTA = .0005               #early stop will want this much loss change before calling it improved.
-PRINT_MODEL_SUMMARY = True      #print layers and weights to stdout
-OPTIMIZER = None                #adam, sgd, rmsprop, etc.. None accepts default
-LEARNING_RATE = 0.001           #only used when OPTIMIZER specified
-LEARNING_RATE_DECAY = 0.0       #only used when OPTIMIZER specified
-SEND_BEST_MODEL_TO_PI = False   #change to true to automatically send best model during training
+BATCH_SIZE = 128                # 勾配降下1回で使用するレコード数。GPUのメモリが不足する場合は小さくする
+TRAIN_TEST_SPLIT = 0.8          # 学習に使用するデータの割合。残りは検証用
+MAX_EPOCHS = 100                # データセットを何回繰り返すか
+SHOW_PLOT = True                # 最終損失をポップアップ表示するか
+VERBOSE_TRAIN = True            # 学習中に進捗バーを表示するか
+USE_EARLY_STOP = True           # 精度が向上しなくなったら学習を停止するか
+EARLY_STOP_PATIENCE = 5         # 改善が見られなくなるまで待つエポック数
+MIN_DELTA = .0005               # 改善とみなす最小損失変化量
+PRINT_MODEL_SUMMARY = True      # レイヤーと重みを標準出力に表示
+OPTIMIZER = None                # adam, sgd, rmsprop など。None ならデフォルト
+LEARNING_RATE = 0.001           # OPTIMIZER を指定したときのみ使用
+LEARNING_RATE_DECAY = 0.0       # OPTIMIZER を指定したときのみ使用
+SEND_BEST_MODEL_TO_PI = False   # True にすると最良モデルを自動で Pi に送信
 
-PRUNE_CNN = False               #This will remove weights from your model. The primary goal is to increase performance.
-PRUNE_PERCENT_TARGET = 75       # The desired percentage of pruning.
-PRUNE_PERCENT_PER_ITERATION = 20 # Percenge of pruning that is perform per iteration.
-PRUNE_VAL_LOSS_DEGRADATION_LIMIT = 0.2 # The max amout of validation loss that is permitted during pruning.
-PRUNE_EVAL_PERCENT_OF_DATASET = .05  # percent of dataset used to perform evaluation of model.
+PRUNE_CNN = False               # モデルから重みを削除して性能向上を狙います
+PRUNE_PERCENT_TARGET = 75       # 目標とする剪定率
+PRUNE_PERCENT_PER_ITERATION = 20 # 1 回の剪定で行う割合
+PRUNE_VAL_LOSS_DEGRADATION_LIMIT = 0.2 # 剪定中に許容される検証損失の最大増加量
+PRUNE_EVAL_PERCENT_OF_DATASET = .05  # 評価に使用するデータセットの割合
 
-#Model transfer options
-#When copying weights during a model transfer operation, should we freeze a certain number of layers
-#to the incoming weights and not allow them to change during training?
-FREEZE_LAYERS = False               #default False will allow all layers to be modified by training
-NUM_LAST_LAYERS_TO_TRAIN = 7        #when freezing layers, how many layers from the last should be allowed to train?
+# モデル転送オプション
+# モデル転送時に重みをコピーする際、いくつかのレイヤーを固定して学習中に変更しないようにできます
+FREEZE_LAYERS = False               # False ならすべてのレイヤーを学習で更新
+NUM_LAST_LAYERS_TO_TRAIN = 7        # レイヤーを凍結する場合、最後から何層を学習させるか
 
-#WEB CONTROL
-WEB_CONTROL_PORT = 8887             # which port to listen on when making a web controller
-WEB_INIT_MODE = "user"              # which control mode to start in. one of user|local_angle|local. Setting local will start in ai mode.
+# Web コントロール
+WEB_CONTROL_PORT = 8887             # Web コントローラが待ち受けるポート番号
+WEB_INIT_MODE = "user"              # 起動時の制御モード。user|local_angle|local のいずれか。local を指定すると AI モードで開始
 
-#JOYSTICK
-USE_JOYSTICK_AS_DEFAULT = False      #when starting the manage.py, when True, will not require a --js option to use the joystick
-JOYSTICK_MAX_THROTTLE = 0.5         #this scalar is multiplied with the -1 to 1 throttle value to limit the maximum throttle. This can help if you drop the controller or just don't need the full speed available.
-JOYSTICK_STEERING_SCALE = 1.0       #some people want a steering that is less sensitve. This scalar is multiplied with the steering -1 to 1. It can be negative to reverse dir.
-AUTO_RECORD_ON_THROTTLE = True      #if true, we will record whenever throttle is not zero. if false, you must manually toggle recording with some other trigger. Usually circle button on joystick.
-CONTROLLER_TYPE = 'xbox'            #(ps3|ps4|xbox|nimbus|wiiu|F710|rc3|MM1|custom) custom will run the my_joystick.py controller written by the `donkey createjs` command
-USE_NETWORKED_JS = False            #should we listen for remote joystick control over the network?
-NETWORK_JS_SERVER_IP = None         #when listening for network joystick control, which ip is serving this information
-JOYSTICK_DEADZONE = 0.01            # when non zero, this is the smallest throttle before recording triggered.
-JOYSTICK_THROTTLE_DIR = 1.0         # use -1.0 to flip forward/backward, use 1.0 to use joystick's natural forward/backward
-USE_FPV = False                     # send camera data to FPV webserver
-JOYSTICK_DEVICE_FILE = "/dev/input/js0" # this is the unix file use to access the joystick.
+# ジョイスティック
+USE_JOYSTICK_AS_DEFAULT = False      # True にすると manage.py 実行時に --js オプションなしでジョイスティックを使用
+JOYSTICK_MAX_THROTTLE = 0.5         # -1～1 のスロットル値に掛けて最大スピードを制限
+JOYSTICK_STEERING_SCALE = 1.0       # ステアリング感度のスケール。負数で方向反転も可能
+AUTO_RECORD_ON_THROTTLE = True      # True ならスロットルがゼロ以外のとき自動で記録。False の場合は別のトリガーで切替
+CONTROLLER_TYPE = 'xbox'            #(ps3|ps4|xbox|nimbus|wiiu|F710|rc3|MM1|custom) custom を選ぶと `donkey createjs` で生成した my_joystick.py を使用
+USE_NETWORKED_JS = False            # ネットワーク越しのジョイスティック制御を受け付けるか
+NETWORK_JS_SERVER_IP = None         # ネットワークジョイスティック制御を使う場合のサーバー IP
+JOYSTICK_DEADZONE = 0.01            # 0 以外の場合、この値以下のスロットルでは記録を開始しない
+JOYSTICK_THROTTLE_DIR = 1.0         # -1.0 で前後を反転、1.0 でジョイスティックの自然な前後を使用
+USE_FPV = False                     # カメラ映像を FPV Web サーバーへ送信
+JOYSTICK_DEVICE_FILE = "/dev/input/js0" # ジョイスティックデバイスのパス
 
-#For the categorical model, this limits the upper bound of the learned throttle
-#it's very IMPORTANT that this value is matched from the training PC config.py and the robot.py
-#and ideally wouldn't change once set.
+# カテゴリカルモデルの場合、学習済みスロットルの上限を制限します
+# この値は学習用 PC の ``config.py`` と ``robot.py`` で一致させることが非常に重要で、
+# 一度決めたら変更しないのが理想です
 MODEL_CATEGORICAL_MAX_THROTTLE_RANGE = 0.8
 
-#RNN or 3D
-SEQUENCE_LENGTH = 3             #some models use a number of images over time. This controls how many.
+# RNN または 3D モデル用
+SEQUENCE_LENGTH = 3             # 時系列画像を用いるモデルの場合の枚数
 
-#IMU
-HAVE_IMU = False                #when true, this add a Mpu6050 part and records the data. Can be used with a
+# IMU
+HAVE_IMU = False                # True で Mpu6050 パーツを追加しデータを記録。次の設定と併用可能
 IMU_SENSOR = 'mpu6050'          # (mpu6050|mpu9250)
-IMU_DLP_CONFIG = 0              # Digital Lowpass Filter setting (0:250Hz, 1:184Hz, 2:92Hz, 3:41Hz, 4:20Hz, 5:10Hz, 6:5Hz)
+IMU_DLP_CONFIG = 0              # デジタルローパスフィルタ設定 (0:250Hz, 1:184Hz, 2:92Hz, 3:41Hz, 4:20Hz, 5:10Hz, 6:5Hz)
 
-#SOMBRERO
-HAVE_SOMBRERO = False           #set to true when using the sombrero hat from the Donkeycar store. This will enable pwm on the hat.
+# SOMBRERO
+HAVE_SOMBRERO = False           # Donkeycar ストアの Sombrero Hat を使用するとき True。Hat 上で PWM が有効になる
 
-#ROBOHAT MM1
-HAVE_ROBOHAT = False            # set to true when using the Robo HAT MM1 from Robotics Masters.  This will change to RC Control.
-MM1_STEERING_MID = 1500         # Adjust this value if your car cannot run in a straight line
-MM1_MAX_FORWARD = 2000          # Max throttle to go fowrward. The bigger the faster
+# ROBOHAT MM1
+HAVE_ROBOHAT = False            # Robotics Masters 製 Robo HAT MM1 を使用する場合は True。RC 制御に切り替わる
+MM1_STEERING_MID = 1500         # 直進できない場合はこの値を調整
+MM1_MAX_FORWARD = 2000          # 最大前進スロットル。値が大きいほど速い
 MM1_STOPPED_PWM = 1500
-MM1_MAX_REVERSE = 1000          # Max throttle to go reverse. The smaller the faster
+MM1_MAX_REVERSE = 1000          # 最大後退スロットル。値が小さいほど速い
 MM1_SHOW_STEERING_VALUE = False
-# Serial port 
-# -- Default Pi: '/dev/ttyS0'
+# シリアルポート
+# -- Pi のデフォルト: '/dev/ttyS0'
 # -- Jetson Nano: '/dev/ttyTHS1'
-# -- Google coral: '/dev/ttymxc0'
+# -- Google Coral: '/dev/ttymxc0'
 # -- Windows: 'COM3', Arduino: '/dev/ttyACM0'
-# -- MacOS/Linux:please use 'ls /dev/tty.*' to find the correct serial port for mm1 
-#  eg.'/dev/tty.usbmodemXXXXXX' and replace the port accordingly
-MM1_SERIAL_PORT = '/dev/ttyS0'  # Serial Port for reading and sending MM1 data.
+# -- MacOS/Linux: 'ls /dev/tty.*' で適切なポートを確認してください
+#    例:'/dev/tty.usbmodemXXXXXX' などに置き換えます
+MM1_SERIAL_PORT = '/dev/ttyS0'  # MM1 のデータ送受信用シリアルポート
 
-#RECORD OPTIONS
-RECORD_DURING_AI = False        #normally we do not record during ai mode. Set this to true to get image and steering records for your Ai. Be careful not to use them to train.
-AUTO_CREATE_NEW_TUB = False     #create a new tub (tub_YY_MM_DD) directory when recording or append records to data directory directly
+# 記録オプション
+RECORD_DURING_AI = False        # 通常 AI モード中は記録しません。True にすると AI 用の画像とステアリングを記録しますが学習には注意
+AUTO_CREATE_NEW_TUB = False     # 記録開始時に新しい tub (tub_YY_MM_DD) を作成するか、既存の data ディレクトリに追加するか
 
-#LED
-HAVE_RGB_LED = False            #do you have an RGB LED like https://www.amazon.com/dp/B07BNRZWNF
-LED_INVERT = False              #COMMON ANODE? Some RGB LED use common anode. like https://www.amazon.com/Xia-Fly-Tri-Color-Emitting-Diffused/dp/B07MYJQP8B
+# LED
+HAVE_RGB_LED = False            # 例: https://www.amazon.com/dp/B07BNRZWNF のような RGB LED を使用するか
+LED_INVERT = False              # コモンアノードの場合は True。例: https://www.amazon.com/Xia-Fly-Tri-Color-Emitting-Diffused/dp/B07MYJQP8B
 
-#LED board pin number for pwm outputs
-#These are physical pinouts. See: https://www.raspberrypi-spy.co.uk/2012/06/simple-guide-to-the-rpi-gpio-header-and-pins/
+# LED ボードの PWM 出力ピン番号
+# 物理ピン番号。参考: https://www.raspberrypi-spy.co.uk/2012/06/simple-guide-to-the-rpi-gpio-header-and-pins/
 LED_PIN_R = 12
 LED_PIN_G = 10
 LED_PIN_B = 16
 
-#LED status color, 0-100
+# LED の初期カラー (0-100)
 LED_R = 0
 LED_G = 0
 LED_B = 1
 
-#LED Color for record count indicator
-REC_COUNT_ALERT = 1000          #how many records before blinking alert
-REC_COUNT_ALERT_CYC = 15        #how many cycles of 1/20 of a second to blink per REC_COUNT_ALERT records
-REC_COUNT_ALERT_BLINK_RATE = 0.4 #how fast to blink the led in seconds on/off
+# 記録数インジケーターの LED カラー
+REC_COUNT_ALERT = 1000          # この回数記録すると点滅を開始
+REC_COUNT_ALERT_CYC = 15        # REC_COUNT_ALERT 件ごとに点滅する周期 (1/20 秒単位)
+REC_COUNT_ALERT_BLINK_RATE = 0.4 # LED の点滅速度 (秒)
 
-#first number is record count, second tuple is color ( r, g, b) (0-100)
-#when record count exceeds that number, the color will be used
+# 先頭は記録数、次に (r, g, b) (0-100) のタプル。
+# 記録数がその値を超えると対応する色に変化します
 RECORD_ALERT_COLOR_ARR = [ (0, (1, 1, 1)),
             (3000, (5, 5, 5)),
             (5000, (5, 2, 0)),
@@ -204,77 +201,77 @@ RECORD_ALERT_COLOR_ARR = [ (0, (1, 1, 1)),
             (20000, (0, 0, 5)), ]
 
 
-#LED status color, 0-100, for model reloaded alert
+# モデル再読み込み時の LED カラー (0-100)
 MODEL_RELOADED_LED_R = 100
 MODEL_RELOADED_LED_G = 0
 MODEL_RELOADED_LED_B = 0
 
 
-#BEHAVIORS
-#When training the Behavioral Neural Network model, make a list of the behaviors,
-#Set the TRAIN_BEHAVIORS = True, and use the BEHAVIOR_LED_COLORS to give each behavior a color
+# ビヘイビア
+# Behavioral Neural Network モデルを学習するときは振る舞いの一覧を作成し、
+# ``TRAIN_BEHAVIORS`` を True に設定して ``BEHAVIOR_LED_COLORS`` で各振る舞いに色を割り当てます
 TRAIN_BEHAVIORS = False
 BEHAVIOR_LIST = ['Left_Lane', "Right_Lane"]
-BEHAVIOR_LED_COLORS =[ (0, 10, 0), (10, 0, 0) ] #RGB tuples 0-100 per chanel
+BEHAVIOR_LED_COLORS =[ (0, 10, 0), (10, 0, 0) ] #RGB タプル 各チャンネル 0-100
 
-#Localizer
-#The localizer is a neural network that can learn to predice it's location on the track.
-#This is an experimental feature that needs more developement. But it can currently be used
-#to predict the segement of the course, where the course is divided into NUM_LOCATIONS segments.
+# ローカライザ
+# ローカライザはコース上の位置を予測するニューラルネットワークです。
+# まだ実験的な機能ですが、コースを ``NUM_LOCATIONS`` 個のセグメントに分割した場合に
+# 現在のセグメントを推定できます
 TRAIN_LOCALIZER = False
 NUM_LOCATIONS = 10
-BUTTON_PRESS_NEW_TUB = False #when enabled, makes it easier to divide our data into one tub per track length if we make a new tub on each X button press.
+BUTTON_PRESS_NEW_TUB = False # 有効にすると X ボタンを押すたびに新しい tub を作成し、走行距離ごとにデータを分けやすくします
 
-#DonkeyGym
-#Only on Ubuntu linux, you can use the simulator as a virtual donkey and
-#issue the same python manage.py drive command as usual, but have them control a virtual car.
-#This enables that, and sets the path to the simualator and the environment.
-#You will want to download the simulator binary from: https://github.com/tawnkramer/donkey_gym/releases/download/v18.9/DonkeySimLinux.zip
-#then extract that and modify DONKEY_SIM_PATH.
+# DonkeyGym
+# Ubuntu Linux では、シミュレータを仮想ドンキーとして利用し、通常どおり ``python manage.py drive`` を実行して仮想カーを操作できます。
+# これを有効にするとシミュレータのパスと環境を設定できます。
+# 以下からシミュレータをダウンロードしてください: https://github.com/tawnkramer/donkey_gym/releases/download/v18.9/DonkeySimLinux.zip
+# 展開後に ``DONKEY_SIM_PATH`` を変更してください。
 DONKEY_GYM = True
-DONKEY_SIM_PATH = "path to sim" #"/home/tkramer/projects/sdsandbox/sdsim/build/DonkeySimLinux/donkey_sim.x86_64" when racing on virtual-race-league use "remote", or user "remote" when you want to start the sim manually first.
+# レースリーグで走行する場合は "remote" を指定するか、手動でシムを起動する場合も "remote" を使用します
+DONKEY_SIM_PATH = "path to sim" #"/home/tkramer/projects/sdsandbox/sdsim/build/DonkeySimLinux/donkey_sim.x86_64" または "remote"
 DONKEY_GYM_ENV_NAME = "donkey-generated-track-v0" # ("donkey-generated-track-v0"|"donkey-generated-roads-v0"|"donkey-warehouse-v0"|"donkey-avc-sparkfun-v0")
 GYM_CONF = { "img_h" : IMAGE_H, "img_w" : IMAGE_W, "body_style" : "donkey", "body_rgb" : (128, 128, 128), "car_name" : "car", "font_size" : 100 } # body style(donkey|bare|car01) body rgb 0-255
 GYM_CONF["racer_name"] = "Your Name"
 GYM_CONF["country"] = "Place"
 GYM_CONF["bio"] = "I race robots."
 
-SIM_HOST = "127.0.0.1"              # when racing on virtual-race-league use host "trainmydonkey.com"
-SIM_ARTIFICIAL_LATENCY = 0          # this is the millisecond latency in controls. Can use useful in emulating the delay when useing a remote server. values of 100 to 400 probably reasonable.
+SIM_HOST = "127.0.0.1"              # Virtual Race League では "trainmydonkey.com" を使用
+SIM_ARTIFICIAL_LATENCY = 0          # リモートサーバー利用時の遅延を模擬するためのミリ秒単位のレイテンシ（100～400 程度が妥当）
 
-#publish camera over network
-#This is used to create a tcp service to pushlish the camera feed
+# カメラ映像のネットワーク配信
+# カメラフィードを配信する TCP サービスを作成します
 PUB_CAMERA_IMAGES = False
 
-#When racing, to give the ai a boost, configure these values.
-AI_LAUNCH_DURATION = 0.0            # the ai will output throttle for this many seconds
-AI_LAUNCH_THROTTLE = 0.0            # the ai will output this throttle value
-AI_LAUNCH_ENABLE_BUTTON = 'R2'      # this keypress will enable this boost. It must be enabled before each use to prevent accidental trigger.
-AI_LAUNCH_KEEP_ENABLED = False      # when False ( default) you will need to hit the AI_LAUNCH_ENABLE_BUTTON for each use. This is safest. When this True, is active on each trip into "local" ai mode.
+# レース時に AI にブーストを与える設定
+AI_LAUNCH_DURATION = 0.0            # AI がこの秒数だけスロットルを出力
+AI_LAUNCH_THROTTLE = 0.0            # AI が出力するスロットル値
+AI_LAUNCH_ENABLE_BUTTON = 'R2'      # このキーを押すとブーストが有効になる。誤作動防止のため毎回有効化が必要
+AI_LAUNCH_KEEP_ENABLED = False      # False（デフォルト）の場合、毎回ボタンを押して有効化する。True の場合は "local" モードに入るたびに有効
 
-#Scale the output of the throttle of the ai pilot for all model types.
-AI_THROTTLE_MULT = 1.0              # this multiplier will scale every throttle value for all output from NN models
+# すべてのモデルに対して AI パイロットのスロットル出力をスケーリング
+AI_THROTTLE_MULT = 1.0              # ニューラルネットワーク出力のスロットル値に掛ける倍率
 
-#Path following
-PATH_FILENAME = "donkey_path.pkl"   # the path will be saved to this filename
-PATH_SCALE = 5.0                    # the path display will be scaled by this factor in the web page
-PATH_OFFSET = (0, 0)                # 255, 255 is the center of the map. This offset controls where the origin is displayed.
-PATH_MIN_DIST = 0.3                 # after travelling this distance (m), save a path point
-PID_P = -10.0                       # proportional mult for PID path follower
-PID_I = 0.000                       # integral mult for PID path follower
-PID_D = -0.2                        # differential mult for PID path follower
-PID_THROTTLE = 0.2                  # constant throttle value during path following
-USE_CONSTANT_THROTTLE = False       # whether or not to use the constant throttle or variable throttle captured during path recording
-SAVE_PATH_BTN = "cross"             # joystick button to save path
-RESET_ORIGIN_BTN = "triangle"       # joystick button to press to move car back to origin
+# 経路追従
+PATH_FILENAME = "donkey_path.pkl"   # 経路を保存するファイル名
+PATH_SCALE = 5.0                    # ウェブページ上の経路表示スケール
+PATH_OFFSET = (0, 0)                # 255,255 がマップの中心。原点表示をずらすオフセット
+PATH_MIN_DIST = 0.3                 # この距離 (m) 移動するごとに経路ポイントを保存
+PID_P = -10.0                       # PID パスフォロワーの P 値
+PID_I = 0.000                       # PID パスフォロワーの I 値
+PID_D = -0.2                        # PID パスフォロワーの D 値
+PID_THROTTLE = 0.2                  # 経路追従中の一定スロットル値
+USE_CONSTANT_THROTTLE = False       # 経路記録時のスロットル値を使うか一定値を使うか
+SAVE_PATH_BTN = "cross"             # 経路保存に使うジョイスティックボタン
+RESET_ORIGIN_BTN = "triangle"       # 原点に戻すジョイスティックボタン
 
-# Intel Realsense D435 and D435i depth sensing camera
-REALSENSE_D435_RGB = True       # True to capture RGB image
-REALSENSE_D435_DEPTH = True     # True to capture depth as image array
-REALSENSE_D435_IMU = False      # True to capture IMU data (D435i only)
-REALSENSE_D435_ID = None        # serial number of camera or None if you only have one camera (it will autodetect)
+# Intel Realsense D435/D435i 深度カメラ
+REALSENSE_D435_RGB = True       # RGB 画像を取得する場合は True
+REALSENSE_D435_DEPTH = True     # 深度を画像配列として取得する場合は True
+REALSENSE_D435_IMU = False      # D435i のみ: IMU データを取得する場合は True
+REALSENSE_D435_ID = None        # カメラのシリアル番号。1 台のみなら None で自動検出
 
-# Stop Sign Detector
+# 一時停止標識検出
 STOP_SIGN_DETECTOR = False
 STOP_SIGN_MIN_SCORE = 0.2
 STOP_SIGN_SHOW_BOUNDING_BOX = True

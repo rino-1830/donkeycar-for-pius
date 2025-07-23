@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Scripts to drive a donkey 2 car
-Shows how to use an implement the drive-loop for a car with Arduino as its
-drive train. Further it shows how to control the car with a joystick for the
-sake of providing a functional demo.
+ドンキー2カーを走行させるためのスクリプト。
+
+Arduino を駆動系として利用する車両でドライブループを実装する方法と、
+動作デモとしてジョイスティックで車を制御する方法を示す。
 
 Usage:
     manage.py (drive)
 
 Options:
-    -h --help          Show this screen.
+    -h --help          この画面を表示する。
 """
 import os
 import time
@@ -22,24 +22,28 @@ from donkeycar.parts.controller import get_js_controller
 
 
 def drive(cfg):
-    '''
-    Construct a working robotic vehicle from many parts.
-    Each part runs as a job in the Vehicle loop, calling either
-    it's run or run_threaded method depending on the constructor flag `threaded`.
-    All parts are updated one after another at the framerate given in
-    cfg.DRIVE_LOOP_HZ assuming each part finishes processing in a timely manner.
-    Parts may have named outputs and inputs. The framework handles passing named outputs
-    to parts requesting the same named input.
-    '''
+    """複数のパーツからなるロボット車両を構築して動作させる。
 
-    #Initialize car
+    各パーツは ``threaded`` フラグに応じて ``run`` または ``run_threaded``
+    メソッドが呼び出され、 ``cfg.DRIVE_LOOP_HZ`` で指定されたフレームレート
+    で順次更新される。パーツは名前付き入出力を持つことができ、同じ名前を
+    求めるパーツへその値が渡される。
+
+    Args:
+        cfg: 車両の設定オブジェクト。
+
+    Returns:
+        None
+    """
+
+    # 車両を初期化する
     V = dk.vehicle.Vehicle()
     ctr = get_js_controller(cfg)
     V.add(ctr,
           outputs=['user/angle', 'user/throttle', 'user/mode', 'recording'],
           threaded=True)
 
-    #Drive train setup
+    # 駆動系のセットアップ
     arduino_controller = ArduinoFirmata(
         servo_pin=cfg.STEERING_ARDUINO_PIN, esc_pin=cfg.THROTTLE_ARDUINO_PIN)
     steering = ArdPWMSteering(controller=arduino_controller,
@@ -54,7 +58,7 @@ def drive(cfg):
     V.add(steering, inputs=['user/angle'])
     V.add(throttle, inputs=['user/throttle'])
 
-    #run the vehicle
+    # 車両を走らせる
     V.start(rate_hz=cfg.DRIVE_LOOP_HZ,
             max_loop_count=cfg.MAX_LOOPS)
 

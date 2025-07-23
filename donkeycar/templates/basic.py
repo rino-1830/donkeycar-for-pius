@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-Scripts to drive a donkey car
+"""DonkeyCar を操作するためのスクリプト。
 
 Usage:
     manage.py drive [--model=<model>] [--type=(linear|categorical|...)]
     manage.py calibrate
 
 Options:
-    -h --help          Show this screen.
+    -h --help          この画面を表示する。
 """
 
 from docopt import docopt
@@ -26,9 +25,14 @@ logging.basicConfig(level=logging.INFO)
 
 
 class DriveMode:
-    """ Helper class to dispatch between ai and user driving"""
+    """AI とユーザー運転を切り替えるヘルパークラス。"""
 
     def __init__(self, cfg):
+        """クラスを初期化する。
+
+        Args:
+            cfg: 設定オブジェクト。
+        """
         self.cfg = cfg
 
     def run(self, mode, user_angle, user_throttle, pilot_angle, pilot_throttle):
@@ -43,26 +47,44 @@ class DriveMode:
 
 
 class PilotCondition:
-    """ Helper class to determine who is in charge of driving"""
+    """誰が運転するかを判断するヘルパークラス。"""
+
     def run(self, mode):
+        """パイロットを実行するかどうかを返す。
+
+        Args:
+            mode: ユーザーモードかどうかを示す文字列。
+
+        Returns:
+            bool: ユーザーでなければ ``True``。
+        """
         return mode != 'user'
 
 
 def drive(cfg, model_path=None, model_type=None):
-    """
-    Construct a minimal robotic vehicle from many parts. Here, we use a
-    single camera, web or joystick controller, autopilot and tubwriter.
+    """各種パーツを組み合わせて最小構成のロボットカーを構築する。
 
-    Each part runs as a job in the Vehicle loop, calling either its run or
-    run_threaded method depending on the constructor flag `threaded`. All
-    parts are updated one after another at the framerate given in
-    cfg.DRIVE_LOOP_HZ assuming each part finishes processing in a timely
-    manner. Parts may have named outputs and inputs. The framework handles
-    passing named outputs to parts requesting the same named input.
+    ここでは 1 台のカメラと Web またはジョイスティックコントローラ、
+    自動運転(オートパイロット)および tubwriter を使用する。
+
+    各パーツは Vehicle ループ内でジョブとして実行され、`threaded` フラグ
+    に応じて ``run`` または ``run_threaded`` が呼び出される。すべてのパーツ
+    は ``cfg.DRIVE_LOOP_HZ`` で指定されたフレームレートで順番に更新され、
+    各パーツが速やかに処理を終えることを前提としている。パーツは名前付き
+    の出力と入力を持つことができ、フレームワークは同じ名前の入力を要求
+    するパーツへ自動的に出力を渡す。
+
+    Args:
+        cfg: 設定オブジェクト。
+        model_path: 事前学習済みモデルのパス。
+        model_type: モデルのタイプ。
+
+    Returns:
+        None
     """
-    logger.info(f'PID: {os.getpid()}')
+    logger.info(f'PID番号: {os.getpid()}')
     car = dk.vehicle.Vehicle()
-    # add camera
+    # カメラを追加
     inputs = []
     if cfg.DONKEY_GYM:
         from donkeycar.parts.dgym import DonkeyGymEnv 
@@ -100,11 +122,11 @@ def drive(cfg, model_path=None, model_type=None):
         from donkeycar.parts.camera import ImageListCamera
         cam = ImageListCamera(path_mask=cfg.PATH_MASK)
     else:
-        raise (Exception("Unkown camera type: %s" % cfg.CAMERA_TYPE))
+        raise Exception("未知のカメラタイプ: %s" % cfg.CAMERA_TYPE)
 
     car.add(cam, inputs=inputs, outputs=['cam/image_array'], threaded=True)
 
-    # add controller
+    # コントローラを追加
     if cfg.USE_RC:
         rc_steering = RCReceiver(cfg.STEERING_RC_GPIO, invert=True)
         rc_throttle = RCReceiver(cfg.THROTTLE_RC_GPIO)
@@ -114,7 +136,7 @@ def drive(cfg, model_path=None, model_type=None):
         car.add(rc_wiper, outputs=['user/wiper', 'user/wiper_on'])
         ctr = LocalWebController(port=cfg.WEB_CONTROL_PORT,
                                  mode=cfg.WEB_INIT_MODE)
-        # web controller sets user mode, its angle, throttle are not used.
+        # Web コントローラはユーザーモードのみ設定し、角度とスロットルは使用しない。
         car.add(ctr, inputs=['cam/image_array'],
                 outputs=['webcontroller/angle', 'webcontroller/throttle',
                          'user/mode', 'recording'],
@@ -138,17 +160,17 @@ def drive(cfg, model_path=None, model_type=None):
                          'recording'],
                 threaded=True)
 
-    # pilot condition to determine if user or ai are driving
+    # ユーザー運転か AI かを判断するパート
     car.add(PilotCondition(), inputs=['user/mode'], outputs=['run_pilot'])
 
-    # adding the auto-pilot
+    # オートパイロットを追加
     if model_type is None:
         model_type = cfg.DEFAULT_MODEL_TYPE
     if model_path:
         kl = dk.utils.get_model_by_type(model_type, cfg)
         kl.load(model_path=model_path)
         inputs = ['cam/image_array']
-        # Add image transformations like crop or trapezoidal mask
+        # クロップや台形マスクなどの画像変換を追加
         if hasattr(cfg, 'TRANSFORMATIONS') and cfg.TRANSFORMATIONS:
             outputs = ['cam/image_array_trans']
             car.add(ImageAugmentation(cfg, 'TRANSFORMATIONS'),
@@ -158,13 +180,13 @@ def drive(cfg, model_path=None, model_type=None):
         outputs = ['pilot/angle', 'pilot/throttle']
         car.add(kl, inputs=inputs, outputs=outputs, run_condition='run_pilot')
 
-    # Choose what inputs should change the car.
+    # 車両に反映する入力を選択
     car.add(DriveMode(cfg=cfg),
             inputs=['user/mode', 'user/angle', 'user/throttle',
                     'pilot/angle', 'pilot/throttle'],
             outputs=['angle', 'throttle'])
 
-    # Drive train setup
+    # 駆動系のセットアップ
     if cfg.DONKEY_GYM or cfg.DRIVE_TRAIN_TYPE == "MOCK":
         pass
     else:
@@ -186,11 +208,11 @@ def drive(cfg, model_path=None, model_type=None):
         car.add(steering, inputs=['angle'])
         car.add(throttle, inputs=['throttle'])
 
-    # add tub to save data
+    # データ保存用の Tub を追加
     inputs = ['cam/image_array', 'user/angle', 'user/throttle', 'user/mode']
     types = ['image_array', 'float', 'float', 'str']
 
-    # do we want to store new records into own dir or append to existing
+    # 新しいディレクトリに記録するか既存に追記するか
     tub_path = TubHandler(path=cfg.DATA_PATH).create_tub_path() if \
         cfg.AUTO_CREATE_NEW_TUB else cfg.DATA_PATH
     tub_writer = TubWriter(base_path=tub_path, inputs=inputs, types=types)
@@ -199,22 +221,28 @@ def drive(cfg, model_path=None, model_type=None):
     if not model_path and cfg.USE_RC:
         tub_wiper = TubWiper(tub_writer.tub, num_records=cfg.DRIVE_LOOP_HZ)
         car.add(tub_wiper, inputs=['user/wiper_on'])
-    # start the car
+    # 車を起動する
     car.start(rate_hz=cfg.DRIVE_LOOP_HZ, max_loop_count=cfg.MAX_LOOPS)
 
 
 def calibrate(cfg):
-    """
-    Construct an auxiliary robotic vehicle from only the RC controllers and
-    prints their values. The RC remote usually has a tuning pot for the throttle
-    and steering channel. In this loop we run the controllers and simply print
-    their values in order to allow centering the RC pwm signals. If there is a
-    third channel on the remote we can use it for wiping bad data while
-    recording, so we print its values here, too.
+    """RC コントローラーのみで構成された補助車両を起動し、値を表示する。
+
+    RC リモコンには一般的にスロットルやステアリング(steering)用の調整つま
+    みが付いており、このループではコントローラーを実行して値を表示すること
+    で PWM 信号をセンタリングできるようにする。リモコンに 3 つ目のチャン
+    ネルがある場合は、記録中に不要なデータを除外するために使用できるので、
+    その値もここで表示する。
+
+    Args:
+        cfg: 設定オブジェクト。
+
+    Returns:
+        None
     """
     donkey_car = dk.vehicle.Vehicle()
 
-    # create the RC receiver
+    # RC レシーバーを作成
     rc_steering = RCReceiver(cfg.STEERING_RC_GPIO, invert=True)
     rc_throttle = RCReceiver(cfg.THROTTLE_RC_GPIO)
     rc_wiper = RCReceiver(cfg.DATA_WIPER_RC_GPIO, jitter=0.05, no_action=0)
@@ -222,18 +250,18 @@ def calibrate(cfg):
     donkey_car.add(rc_throttle, outputs=['user/throttle', 'user/throttle_on'])
     donkey_car.add(rc_wiper, outputs=['user/wiper', 'user/wiper_on'])
 
-    # create plotter part for printing into the shell
+    # シェルに出力するプロッターパートを作成
     class Plotter:
         def run(self, angle, steering_on, throttle, throttle_on, wiper, wiper_on):
-            print('angle=%+5.4f, steering_on=%1d, throttle=%+5.4f, '
-                  'throttle_on=%1d wiper=%+5.4f, wiper_on=%1d' %
+            print('角度=%+5.4f, steering_on=%1d, スロットル=%+5.4f, '
+                  'throttle_on=%1d ワイパー=%+5.4f, wiper_on=%1d' %
                   (angle, steering_on, throttle, throttle_on, wiper, wiper_on))
 
-    # add plotter part
+    # プロッターパートを追加
     donkey_car.add(Plotter(), inputs=['user/angle', 'user/steering_on',
                                       'user/throttle', 'user/throttle_on',
                                       'user/wiper', 'user/wiper_on'])
-    # run the vehicle at 5Hz to keep network traffic down
+    # ネットワーク負荷を抑えるため 5Hz で実行
     donkey_car.start(rate_hz=10, max_loop_count=cfg.MAX_LOOPS)
 
 

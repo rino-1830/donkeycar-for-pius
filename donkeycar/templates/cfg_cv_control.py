@@ -1,11 +1,9 @@
 """
-PATH FOLLOWING: 'path_follow' template configurations
+PATH FOLLOWING: 'path_follow' テンプレート設定
 
-# This file is read by your car application's manage.py script to change the car
-# performance
+# このファイルは car アプリケーションの manage.py スクリプトによって読み込まれ、車の性能を変更します
 
-# If desired, all config overrides can be specified here. 
-# The update operation will not touch this file.
+# 必要に応じてここで全ての設定を上書きできます。update 操作ではこのファイルは変更されません。
 # """
 
 import os
@@ -14,128 +12,127 @@ import os
 import os
 
 #
-# FILE PATHS
+# ファイルパス
 #
 CAR_PATH = PACKAGE_PATH = os.path.dirname(os.path.realpath(__file__))
 DATA_PATH = os.path.join(CAR_PATH, 'data')
 
 
 #
-# VEHICLE loop
+# 車両ループ
 #
-DRIVE_LOOP_HZ = 20      # the vehicle loop will pause if faster than this speed.
-MAX_LOOPS = None        # the vehicle loop can abort after this many iterations, when given a positive integer.
+DRIVE_LOOP_HZ = 20      # この速度より速い場合、車両ループは一時停止します。
+MAX_LOOPS = None        # 正の整数を指定すると、車両ループはこの回数で中断します。
 
 
 #
-# CAMERA configuration
+# カメラ設定
 #
 CAMERA_TYPE = "PICAM"   # (PICAM|WEBCAM|CVCAM|CSIC|V4L|D435|MOCK|IMAGE_LIST)
 IMAGE_W = 320
 IMAGE_H = 240
-IMAGE_DEPTH = 3         # default RGB=3, make 1 for mono
+IMAGE_DEPTH = 3         # 既定はRGB=3。モノクロの場合は1
 CAMERA_FRAMERATE = DRIVE_LOOP_HZ
 CAMERA_VFLIP = False
 CAMERA_HFLIP = False
-CAMERA_INDEX = 0  # used for 'WEBCAM' and 'CVCAM' when there is more than one camera connected
-# For CSIC camera - If the camera is mounted in a rotated position, changing the below parameter will correct the output frame orientation
-CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => none , 4 => Flip horizontally, 6 => Flip vertically)
-BGR2RGB = False  # true to convert from BRG format to RGB format; requires opencv
+CAMERA_INDEX = 0  # 'WEBCAM' や 'CVCAM' で複数カメラ接続時に使用
+# CSIC カメラ用 - カメラが回転して取り付けられている場合、このパラメータを変更すると出力フレームの向きを補正できます
+CSIC_CAM_GSTREAMER_FLIP_PARM = 0 # (0 => なし, 4 => 水平反転, 6 => 垂直反転)
+BGR2RGB = False  # True で BGR から RGB へ変換。opencv が必要
 
-# For IMAGE_LIST camera
+# IMAGE_LIST カメラ用
 PATH_MASK = "~/mycar/data/tub_1_20-03-12/*.jpg"
 
 
 #
-# PCA9685, over rides only if needed, ie. TX2..
+# PCA9685 設定。必要な場合のみ変更 (例: TX2)
 #
-PCA9685_I2C_ADDR = 0x40     #I2C address, use i2cdetect to validate this number
-PCA9685_I2C_BUSNUM = None   #None will auto detect, which is fine on the pi. But other platforms should specify the bus num.
+PCA9685_I2C_ADDR = 0x40     # I2C アドレス。i2cdetect で確認
+PCA9685_I2C_BUSNUM = None   # None なら自動検出。Pi では問題ないが他プラットフォームは指定
 
 
 #
 # SSD1306_128_32
 #
-USE_SSD1306_128_32 = False    # Enable the SSD_1306 OLED Display
-SSD1306_128_32_I2C_ROTATION = 0 # 0 = text is right-side up, 1 = rotated 90 degrees clockwise, 2 = 180 degrees (flipped), 3 = 270 degrees
-SSD1306_RESOLUTION = 1 # 1 = 128x32; 2 = 128x64
+USE_SSD1306_128_32 = False    # SSD_1306 OLED ディスプレイを有効にする
+SSD1306_128_32_I2C_ROTATION = 0 # 0: 正常, 1: 90度時計回り, 2: 180度反転, 3: 270度
+SSD1306_RESOLUTION = 1 # 1: 128x32, 2: 128x64
 
 
 #
-# MEASURED ROBOT PROPERTIES
+# 計測済みロボット特性
 #
-AXLE_LENGTH = 0.03     # length of axle; distance between left and right wheels in meters
-WHEEL_BASE = 0.1       # distance between front and back wheels in meters
-WHEEL_RADIUS = 0.0315  # radius of wheel in meters
-MIN_SPEED = 0.1        # minimum speed in meters per second; speed below which car stalls
-MAX_SPEED = 3.0        # maximum speed in meters per second; speed at maximum throttle (1.0)
-MIN_THROTTLE = 0.1     # throttle (0 to 1.0) that corresponds to MIN_SPEED, throttle below which car stalls
-MAX_STEERING_ANGLE = 3.141592653589793 / 4  # for car-like robot; maximum steering angle in radians (corresponding to tire angle at steering == -1)
+AXLE_LENGTH = 0.03     # 車軸の長さ（左右タイヤ間の距離、メートル）
+WHEEL_BASE = 0.1       # 前後輪間の距離（メートル）
+WHEEL_RADIUS = 0.0315  # タイヤ半径（メートル）
+MIN_SPEED = 0.1        # 車が停止する速度未満とみなす最小速度（m/s）
+MAX_SPEED = 3.0        # 最大スピード（m/s）。スロットル1.0時の速度
+MIN_THROTTLE = 0.1     # MIN_SPEED に対応するスロットル値 (0～1.0)。これ未満では停止
+MAX_STEERING_ANGLE = 3.141592653589793 / 4  # 車両型ロボットの最大操舵角 (ステアリング=-1 時のタイヤ角、ラジアン)
 
 
 #
 # DRIVE_TRAIN_TYPE
-# These options specify which chasis and motor setup you are using.
-# See Actuators documentation https://docs.donkeycar.com/parts/actuators/
-# for a detailed explanation of each drive train type and it's configuration.
-# Choose one of the following and then update the related configuration section:
+# 使用するシャーシとモーター構成を指定します。
+# 各駆動方式の詳細は https://docs.donkeycar.com/parts/actuators/ を参照してください。
+# 以下から一つを選び、対応する設定セクションを更新してください。
 #
-# "PWM_STEERING_THROTTLE" uses two PWM output pins to control a steering servo and an ESC, as in a standard RC car.
-# "MM1" Robo HAT MM1 board
-# "SERVO_HBRIDGE_2PIN" Servo for steering and HBridge motor driver in 2pin mode for motor
-# "SERVO_HBRIDGE_3PIN" Servo for steering and HBridge motor driver in 3pin mode for motor
-# "DC_STEER_THROTTLE" uses HBridge pwm to control one steering dc motor, and one drive wheel motor
-# "DC_TWO_WHEEL" uses HBridge in 2-pin mode to control two drive motors, one on the left, and one on the right.
-# "DC_TWO_WHEEL_L298N" using HBridge in 3-pin mode to control two drive motors, one of the left and one on the right.
-# "MOCK" no drive train.  This can be used to test other features in a test rig.
-# (deprecated) "SERVO_HBRIDGE_PWM" use ServoBlaster to output pwm control from the PiZero directly to control steering,
-#                                  and HBridge for a drive motor.
-# (deprecated) "PIGPIO_PWM" uses Raspberrys internal PWM
-# (deprecated) "I2C_SERVO" uses PCA9685 servo controller to control a steering servo and an ESC, as in a standard RC car
+# "PWM_STEERING_THROTTLE" は一般的なRCカー同様、ステアリングサーボと ESC を PWM ピン2本で制御
+# "MM1" Robo HAT MM1 ボード
+# "SERVO_HBRIDGE_2PIN" ステアリング用サーボと 2ピンモードの HBridge モータードライバー
+# "SERVO_HBRIDGE_3PIN" ステアリング用サーボと 3ピンモードの HBridge モータードライバー
+# "DC_STEER_THROTTLE" は HBridge PWM でステアリング用DCモーターと駆動用モーターを制御
+# "DC_TWO_WHEEL" は2ピンモードの HBridge で左右の駆動モーターを制御
+# "DC_TWO_WHEEL_L298N" は3ピンモードの HBridge(L298N) で左右の駆動モーターを制御
+# "MOCK" 駆動系なし。テストリグで他機能を試すのに使用
+# (非推奨) "SERVO_HBRIDGE_PWM" は PiZero の ServoBlaster でステアリングを直接PWM制御
+#                                  駆動モーターには HBridge を使用
+# (非推奨) "PIGPIO_PWM" は Raspberry の内部 PWM を利用
+# (非推奨) "I2C_SERVO" は PCA9685 サーボコントローラでステアリングと ESC を制御 (RCカー方式)
 #
 DRIVE_TRAIN_TYPE = "PWM_STEERING_THROTTLE"
 
 #
 # PWM_STEERING_THROTTLE drivetrain configuration
 #
-# Drive train for RC car with a steering servo and ESC.
-# Uses a PwmPin for steering (servo) and a second PwmPin for throttle (ESC)
-# Base PWM Frequence is presumed to be 60hz; use PWM_xxxx_SCALE to adjust pulse with for non-standard PWM frequencies
+# ステアリングサーボと ESC を搭載した RCカー向け駆動系
+# ステアリング用に PwmPin を、スロットル用にもう一つの PwmPin を使用
+# 基本PWM周波数は60Hz想定。異なる場合は PWM_xxxx_SCALE でパルス幅を調整
 #
 PWM_STEERING_THROTTLE = {
-    "PWM_STEERING_PIN": "PCA9685.1:40.1",   # PWM output pin for steering servo
-    "PWM_STEERING_SCALE": 1.0,              # used to compensate for PWM frequency differents from 60hz; NOT for adjusting steering range
-    "PWM_STEERING_INVERTED": False,         # True if hardware requires an inverted PWM pulse
-    "PWM_THROTTLE_PIN": "PCA9685.1:40.0",   # PWM output pin for ESC
-    "PWM_THROTTLE_SCALE": 1.0,              # used to compensate for PWM frequence differences from 60hz; NOT for increasing/limiting speed
-    "PWM_THROTTLE_INVERTED": False,         # True if hardware requires an inverted PWM pulse
-    "STEERING_LEFT_PWM": 460,               #pwm value for full left steering
-    "STEERING_RIGHT_PWM": 290,              #pwm value for full right steering
-    "THROTTLE_FORWARD_PWM": 500,            #pwm value for max forward throttle
-    "THROTTLE_STOPPED_PWM": 370,            #pwm value for no movement
-    "THROTTLE_REVERSE_PWM": 220,            #pwm value for max reverse throttle
+    "PWM_STEERING_PIN": "PCA9685.1:40.1",   # ステアリングサーボの PWM 出力ピン
+    "PWM_STEERING_SCALE": 1.0,              # PWM 周波数が60Hz以外の場合の補正用。舵角調整ではない
+    "PWM_STEERING_INVERTED": False,         # ハードウェアが反転PWMを必要とする場合は True
+    "PWM_THROTTLE_PIN": "PCA9685.1:40.0",   # ESC の PWM 出力ピン
+    "PWM_THROTTLE_SCALE": 1.0,              # PWM 周波数が60Hz以外の場合の補正用。速度調整ではない
+    "PWM_THROTTLE_INVERTED": False,         # ハードウェアが反転PWMを必要とする場合は True
+    "STEERING_LEFT_PWM": 460,               # 左いっぱいの PWM 値
+    "STEERING_RIGHT_PWM": 290,              # 右いっぱいの PWM 値
+    "THROTTLE_FORWARD_PWM": 500,            # 最大前進スロットルの PWM 値
+    "THROTTLE_STOPPED_PWM": 370,            # 停止時の PWM 値
+    "THROTTLE_REVERSE_PWM": 220,            # 最大後進スロットルの PWM 値
 }
 
 #
-# I2C_SERVO (deprecated in favor of PWM_STEERING_THROTTLE)
+# I2C_SERVO (PWM_STEERING_THROTTLE 推奨のため非推奨)
 #
-STEERING_CHANNEL = 1            #(deprecated) channel on the 9685 pwm board 0-15
-STEERING_LEFT_PWM = 460         #pwm value for full left steering
-STEERING_RIGHT_PWM = 290        #pwm value for full right steering
-THROTTLE_CHANNEL = 0            #(deprecated) channel on the 9685 pwm board 0-15
-THROTTLE_FORWARD_PWM = 500      #pwm value for max forward throttle
-THROTTLE_STOPPED_PWM = 370      #pwm value for no movement
-THROTTLE_REVERSE_PWM = 220      #pwm value for max reverse throttle
+STEERING_CHANNEL = 1            #(非推奨) 9685 PWM ボードのチャンネル 0-15
+STEERING_LEFT_PWM = 460         # 左いっぱいの PWM 値
+STEERING_RIGHT_PWM = 290        # 右いっぱいの PWM 値
+THROTTLE_CHANNEL = 0            #(非推奨) 9685 PWM ボードのチャンネル 0-15
+THROTTLE_FORWARD_PWM = 500      # 最大前進スロットルの PWM 値
+THROTTLE_STOPPED_PWM = 370      # 停止時の PWM 値
+THROTTLE_REVERSE_PWM = 220      # 最大後進スロットルの PWM 値
 
 #
-# PIGPIO_PWM (deprecated in favor of PWM_STEERING_THROTTLE)
+# PIGPIO_PWM (PWM_STEERING_THROTTLE 推奨のため非推奨)
 #
-STEERING_PWM_PIN = 13           #(deprecated) Pin numbering according to Broadcom numbers
-STEERING_PWM_FREQ = 50          #Frequency for PWM
-STEERING_PWM_INVERTED = False   #If PWM needs to be inverted
-THROTTLE_PWM_PIN = 18           #(deprecated) Pin numbering according to Broadcom numbers
-THROTTLE_PWM_FREQ = 50          #Frequency for PWM
-THROTTLE_PWM_INVERTED = False   #If PWM needs to be inverted
+STEERING_PWM_PIN = 13           #(非推奨) Broadcom 番号によるピン指定
+STEERING_PWM_FREQ = 50          # PWM の周波数
+STEERING_PWM_INVERTED = False   # PWM を反転する必要がある場合
+THROTTLE_PWM_PIN = 18           #(非推奨) Broadcom 番号によるピン指定
+THROTTLE_PWM_FREQ = 50          # PWM の周波数
+THROTTLE_PWM_INVERTED = False   # PWM を反転する必要がある場合
 
 #
 # SERVO_HBRIDGE_2PIN drivetrain configuration

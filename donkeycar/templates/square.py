@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
 
-"""
-Web controller.
+"""Web コントローラ。
 
-This example shows how a user use a web controller to controll
-a square that move around the image frame.
-
+このサンプルは、ユーザーが Web コントローラを使って画像フレーム内を動き回る四角形を操作する方法を示します。
 
 Usage:
     manage.py (drive) [--model=<model>]
     manage.py (train) [--tub=<tub1,tub2,..tubn>] (--model=<model>)
-
 """
 
 
@@ -26,17 +22,24 @@ from donkeycar.parts.keras import KerasCategorical
 
 
 def drive(cfg, model_path=None):
+    """Web コントローラで丸を操作して車体を動かす。
+
+    Args:
+        cfg: コンフィグ設定を含むオブジェクト。
+        model_path: ロードするモデルファイルのパス。
+
+    """
     V = dk.vehicle.Vehicle()
-    #initialize values
+    # 値を初期化する
     V.mem.put(['square/angle', 'square/throttle'], (100,100))  
     
-    #display square box given by cooridantes.
+    # 座標で与えられた四角形を表示する
     cam = SquareBoxCamera(resolution=(cfg.IMAGE_H, cfg.IMAGE_W))
     V.add(cam, 
           inputs=['square/angle', 'square/throttle'],
           outputs=['cam/image_array'])
     
-    #display the image and read user values from a local web controller
+    # 画像を表示しローカル Web コントローラからユーザー値を取得する
     ctr = LocalWebController()
     V.add(ctr, 
           inputs=['cam/image_array'],
@@ -44,8 +47,8 @@ def drive(cfg, model_path=None):
                    'user/mode', 'recording'],
           threaded=True)
     
-    #See if we should even run the pilot module. 
-    #This is only needed because the part run_contion only accepts boolean
+    # パイロットモジュールを実行するべきか判定する
+    # part の run_condition が真偽値しか受け付けないため必要
     def pilot_condition(mode):
         if mode == 'user':
             return False
@@ -55,7 +58,7 @@ def drive(cfg, model_path=None):
     pilot_condition_part = Lambda(pilot_condition)
     V.add(pilot_condition_part, inputs=['user/mode'], outputs=['run_pilot'])
     
-    #Run the pilot if the mode is not user.
+    # モードが user でなければパイロットを走らせる
     kl = KerasCategorical()
     if model_path:
         kl.load(model_path)
@@ -65,7 +68,7 @@ def drive(cfg, model_path=None):
           run_condition='run_pilot')
     
     
-    #See if we should even run the pilot module. 
+    # パイロットモジュールを実行するか確認する
     def drive_mode(mode, 
                    user_angle, user_throttle,
                    pilot_angle, pilot_throttle):
@@ -86,13 +89,13 @@ def drive(cfg, model_path=None):
     
     
     
-    #transform angle and throttle values to coordinate values
+    # 角度とスロットル値を座標値へ変換する
     f = lambda x : int(x * 100 + 100)
     l = Lambda(f)
     V.add(l, inputs=['user/angle'], outputs=['square/angle'])
     V.add(l, inputs=['user/throttle'], outputs=['square/throttle'])
     
-    #add tub to save data
+    # データを保存する tub を追加する
     inputs=['cam/image_array',
             'user/angle', 'user/throttle', 
             'pilot/angle', 'pilot/throttle', 
@@ -108,12 +111,20 @@ def drive(cfg, model_path=None):
     tub = th.new_tub_writer(inputs=inputs, types=types)
     V.add(tub, inputs=inputs, run_condition='recording')
     
-    #run the vehicle for 20 seconds
+    # 20 秒間車両を走らせる
     V.start(rate_hz=50, max_loop_count=10000)
     
     
     
 def train(cfg, tub_names, model_name):
+    """データを使ってモデルを訓練する。
+
+    Args:
+        cfg: 設定を含むオブジェクト。
+        tub_names: 読み込む tub フォルダの名前。
+        model_name: 出力されるモデルファイル名。
+
+    """
     
     X_keys = ['cam/image_array']
     y_keys = ['user/angle', 'user/throttle']
@@ -130,7 +141,7 @@ def train(cfg, tub_names, model_name):
         return combined_gen
     
     kl = KerasCategorical()
-    print('tub_names', tub_names)
+    print('tub名', tub_names)
     if not tub_names:
         tub_names = os.path.join(cfg.DATA_PATH, '*')
     tubgroup = TubGroup(tub_names)
@@ -143,9 +154,9 @@ def train(cfg, tub_names, model_name):
     total_records = len(tubgroup.df)
     total_train = int(total_records * cfg.TRAIN_TEST_SPLIT)
     total_val = total_records - total_train
-    print('train: %d, validation: %d' % (total_train, total_val))
+    print('訓練: %d, 検証: %d' % (total_train, total_val))
     steps_per_epoch = total_train // cfg.BATCH_SIZE
-    print('steps_per_epoch', steps_per_epoch)
+    print('1エピソードのステップ数', steps_per_epoch)
 
     kl.train(train_gen,
              val_gen,

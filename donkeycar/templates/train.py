@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""
-Scripts to train a keras model using tensorflow.
-Basic usage should feel familiar: train.py --tubs data/ --model models/mypilot.h5
+"""TensorFlow を使用して Keras モデルを学習するスクリプトです。
+
+基本的な使い方は ``train.py --tubs data/ --model models/mypilot.h5`` です。
 
 Usage:
     train.py [--tubs=tubs] (--model=<model>)
@@ -9,7 +9,7 @@ Usage:
     [--comment=<comment>]
 
 Options:
-    -h --help              Show this screen.
+    -h --help              この画面を表示します。
 """
 
 from docopt import docopt

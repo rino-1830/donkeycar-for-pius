@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Scripts to drive a donkey 2 car
+ドンキー2カーを走らせるためのスクリプト。
 
 Usage:
     manage.py (drive)
 
 
 Options:
-    -h --help          Show this screen.
+    -h --help          この画面を表示。
 """
 import os
 import time
@@ -16,7 +16,7 @@ from docopt import docopt
 
 import donkeycar as dk
 
-#import parts
+# パーツのインポート
 from donkeycar.parts.controller import LocalWebController, \
     JoystickController, WebFpv
 from donkeycar.parts.throttle_filter import ThrottleFilter
@@ -26,17 +26,22 @@ from donkeycar.utils import *
 from socket import gethostname
 
 def drive(cfg ):
-    '''
-    Construct a working robotic vehicle from many parts.
-    Each part runs as a job in the Vehicle loop, calling either
-    it's run or run_threaded method depending on the constructor flag `threaded`.
-    All parts are updated one after another at the framerate given in
-    cfg.DRIVE_LOOP_HZ assuming each part finishes processing in a timely manner.
-    Parts may have named outputs and inputs. The framework handles passing named outputs
-    to parts requesting the same named input.
-    '''
+    """複数の部品を組み合わせて動作するロボット車両を構築する。
 
-    #Initialize car
+    各部品は Vehicle ループのジョブとして実行され、`threaded` フラグに応じて
+    `run` または `run_threaded` メソッドが呼び出される。すべての部品は
+    `cfg.DRIVE_LOOP_HZ` で指定されたフレームレートで順に更新され、各部品が
+    適切な時間内に処理を終えることを前提としている。部品には入出力の名前を
+    付けることができ、フレームワークは同じ名前を要求する部品へその値を渡す。
+
+    Args:
+        cfg: 走行設定を保持する ``dk.config`` オブジェクト。
+
+    Returns:
+        None
+    """
+
+    # 車両を初期化
     V = dk.vehicle.Vehicle()
 
     ctr = LocalWebController(port=cfg.WEB_CONTROL_PORT)
@@ -45,21 +50,21 @@ def drive(cfg ):
           outputs=['angle', 'throttle', 'user/mode', 'recording'],
           threaded=True)
 
-    #this throttle filter will allow one tap back for esc reverse
+    # このスロットルフィルターによりESCのリバースを一度の操作で行える
     th_filter = ThrottleFilter()
     V.add(th_filter, inputs=['throttle'], outputs=['throttle'])
 
     drive_train = None
 
-    #Drive train setup
+    # ドライブトレインの設定
     if cfg.DONKEY_GYM or cfg.DRIVE_TRAIN_TYPE == "MOCK":
         pass
 
     elif cfg.DRIVE_TRAIN_TYPE == "PWM_STEERING_THROTTLE":
         #
-        # drivetrain for RC car with servo and ESC.
-        # using a PwmPin for steering (servo)
-        # and as second PwmPin for throttle (ESC)
+        # サーボとESCを備えたRCカー用のドライブトレイン。
+        # ステアリング(サーボ)に ``PwmPin`` を使用し、
+        # スロットル(ESC)には2つ目の ``PwmPin`` を使用する。
         #
         from donkeycar.parts.actuator import PWMSteering, PWMThrottle, PulseController
         dt = cfg.PWM_STEERING_THROTTLE
@@ -115,12 +120,14 @@ def drive(cfg ):
         drive_train = RoboHATDriver(cfg)
         V.add(drive_train, inputs=['angle', 'throttle'])
 
-    # TODO: monkeypatching is bad!!!
+    # TODO: モンキーパッチは好ましくない!!!
     ctr.drive_train = drive_train
     ctr.drive_train_type = cfg.DRIVE_TRAIN_TYPE
 
-    print(f"Go to http://{gethostname()}.local:{ctr.port}/calibrate to "
-          f"calibrate ")
+    print(
+        f"http://{gethostname()}.local:{ctr.port}/calibrate にアクセスして"
+        f"キャリブレーションを行ってください"
+    )
 
     V.start(rate_hz=cfg.DRIVE_LOOP_HZ, max_loop_count=cfg.MAX_LOOPS)
 

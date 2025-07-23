@@ -1,10 +1,10 @@
-# """ 
-# My CAR CONFIG 
-
-# This file is read by your car application's manage.py script to change the car
-# performance
-
-# If desired, all config overrides can be specified here. 
-# The update operation will not touch this file.
+# """
+# My CAR CONFIG
+#
+# このファイルは、あなたの車アプリケーションの manage.py スクリプトから読み込み、
+# 車のパフォーマンスを変更します。
+#
+# 必要であれば、すべての設定上書きをここに記述できます。
+# update 操作ではこのファイルは変更されません。
 # """
 

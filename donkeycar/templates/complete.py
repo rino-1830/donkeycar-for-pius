@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-Scripts to drive a donkey 2 car
+Donkey 2 車両を走行させるスクリプト。
 
 Usage:
     manage.py (drive) [--model=<model>] [--js] [--type=(linear|categorical)] [--camera=(single|stereo)] [--meta=<key:value> ...] [--myconfig=<filename>]
     manage.py (train) [--tubs=tubs] (--model=<model>) [--type=(linear|inferred|tensorrt_linear|tflite_linear)]
 
 Options:
-    -h --help               Show this screen.
-    --js                    Use physical joystick.
-    -f --file=<file>        A text file containing paths to tub files, one per line. Option may be used more than once.
-    --meta=<key:value>      Key/Value strings describing describing a piece of meta data about this drive. Option may be used more than once.
-    --myconfig=filename     Specify myconfig file to use. 
+    -h --help               このヘルプを表示します。
+    --js                    物理ジョイスティックを使用します。
+    -f --file=<file>        1 行につき 1 つの tub ファイルへのパスを記述したテキストファイル。複数指定可能です。
+    --meta=<key:value>      この走行に関するメタデータを表すキーと値の文字列。複数指定可能です。
+    --myconfig=filename     使用する myconfig ファイルを指定します。
                             [default: myconfig.py]
 """
 from docopt import docopt
 
 #
-# import cv2 early to avoid issue with importing after tensorflow
-# see https://github.com/opencv/opencv/issues/14884#issuecomment-599852128
+# TensorFlow より後にインポートすると問題が起こるため、先に cv2 を読み込む
+# 詳細: https://github.com/opencv/opencv/issues/14884#issuecomment-599852128
 #
 try:
     import cv2
@@ -49,20 +49,19 @@ logging.basicConfig(level=logging.INFO)
 
 def drive(cfg, model_path=None, use_joystick=False, model_type=None,
           camera_type='single', meta=[]):
-    """
-    Construct a working robotic vehicle from many parts. Each part runs as a
-    job in the Vehicle loop, calling either it's run or run_threaded method
-    depending on the constructor flag `threaded`. All parts are updated one
-    after another at the framerate given in cfg.DRIVE_LOOP_HZ assuming each
-    part finishes processing in a timely manner. Parts may have named outputs
-    and inputs. The framework handles passing named outputs to parts
-    requesting the same named input.
+    """多くのパーツを組み合わせて動作するロボットカーを構築する。
+
+    各パーツは ``threaded`` フラグに応じて ``run`` もしくは ``run_threaded``
+    メソッドが呼び出される。すべてのパーツは ``cfg.DRIVE_LOOP_HZ`` で
+    指定されたフレームレートで順に更新され、処理が遅延しないことを
+    前提としている。パーツは名前付きの出力と入力を持つことができ、
+    フレームワークは同じ名前の入力を要求するパーツへ出力を渡す。
     """
     logger.info(f'PID: {os.getpid()}')
     if cfg.DONKEY_GYM:
-        #the simulator will use cuda and then we usually run out of resources
-        #if we also try to use cuda. so disable for donkey_gym.
-        os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+        # シミュレータが CUDA を使用するため、こちらでも CUDA を使うとリソース不足になる
+        # そのため donkey_gym 使用時は CUDA を無効化する
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
     if model_type is None:
         if cfg.TRAIN_LOCALIZER:
@@ -72,10 +71,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         else:
             model_type = cfg.DEFAULT_MODEL_TYPE
 
-    # Initialize car
+    # 車両を初期化
     V = dk.vehicle.Vehicle()
 
-    # Initialize logging before anything else to allow console logging
+    # コンソールログを出力するため、最初にロギングを初期化
     if cfg.HAVE_CONSOLE_LOGGING:
         logger.setLevel(logging.getLevelName(cfg.LOGGING_LEVEL))
         ch = logging.StreamHandler()
@@ -87,32 +86,32 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
         tel = MqttTelemetry(cfg)
         
     #
-    # if we are using the simulator, set it up
+    # シミュレータを使用する場合の設定
     #
     add_simulator(V, cfg)
 
 
     #
-    # setup encoders, odometry and pose estimation
+    # エンコーダ、オドメトリ、姿勢推定を設定
     #
     add_odometry(V, cfg)
 
 
     #
-    # setup primary camera
+    # メインカメラの設定
     #
     add_camera(V, cfg, camera_type)
 
 
-    # add lidar
+    # LIDAR を追加
     if cfg.USE_LIDAR:
         from donkeycar.parts.lidar import RPLidar
         if cfg.LIDAR_TYPE == 'RP':
-            print("adding RP lidar part")
+            print("RP Lidar パーツを追加します")
             lidar = RPLidar(lower_limit = cfg.LIDAR_LOWER_LIMIT, upper_limit = cfg.LIDAR_UPPER_LIMIT)
             V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
         if cfg.LIDAR_TYPE == 'YD':
-            print("YD Lidar not yet supported")
+            print("YD Lidar はまだサポートされていません")
 
     if cfg.HAVE_TFMINI:
         from donkeycar.parts.tfmini import TFMini
@@ -146,18 +145,18 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
     # For example: adding a button handler is just adding a part with a run_condition
     # set to the button's name, so it runs when button is pressed.
     #
-    V.add(Lambda(lambda v: print(f"web/w1 clicked")), inputs=["web/w1"], run_condition="web/w1")
-    V.add(Lambda(lambda v: print(f"web/w2 clicked")), inputs=["web/w2"], run_condition="web/w2")
-    V.add(Lambda(lambda v: print(f"web/w3 clicked")), inputs=["web/w3"], run_condition="web/w3")
-    V.add(Lambda(lambda v: print(f"web/w4 clicked")), inputs=["web/w4"], run_condition="web/w4")
-    V.add(Lambda(lambda v: print(f"web/w5 clicked")), inputs=["web/w5"], run_condition="web/w5")
+    V.add(Lambda(lambda v: print(f"web/w1 がクリックされました")), inputs=["web/w1"], run_condition="web/w1")
+    V.add(Lambda(lambda v: print(f"web/w2 がクリックされました")), inputs=["web/w2"], run_condition="web/w2")
+    V.add(Lambda(lambda v: print(f"web/w3 がクリックされました")), inputs=["web/w3"], run_condition="web/w3")
+    V.add(Lambda(lambda v: print(f"web/w4 がクリックされました")), inputs=["web/w4"], run_condition="web/w4")
+    V.add(Lambda(lambda v: print(f"web/w5 がクリックされました")), inputs=["web/w5"], run_condition="web/w5")
 
-    #this throttle filter will allow one tap back for esc reverse
+    # このスロットルフィルターにより ESC のリバースをワンタップで解除できる
     th_filter = ThrottleFilter()
     V.add(th_filter, inputs=['user/throttle'], outputs=['user/throttle'])
 
     #
-    # maintain run conditions for user mode and autopilot mode parts.
+    # ユーザーモードと自動運転モードの実行条件を管理
     #
     V.add(UserPilotCondition(show_pilot_image=getattr(cfg, 'SHOW_PILOT_IMAGE', False)),
           inputs=['user/mode', "cam/image_array", "cam/image_array_trans"],
@@ -168,7 +167,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             self.cfg = cfg
 
         def run(self, mode, recording, recording_alert, behavior_state, model_file_changed, track_loc):
-            #returns a blink rate. 0 for off. -1 for on. positive for rate.
+            # 点滅速度を返す。0 は消灯、-1 は点灯、正数は点滅周期(秒)
 
             if track_loc is not None:
                 led.set_rgb(*self.cfg.LOC_COLORS[track_loc])
@@ -189,10 +188,10 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             if behavior_state is not None and model_type == 'behavior':
                 r, g, b = self.cfg.BEHAVIOR_LED_COLORS[behavior_state]
                 led.set_rgb(r, g, b)
-                return -1 #solid on
+                return -1 # 点灯し続ける
 
             if recording:
-                return -1 #solid on
+                return -1 # 点灯し続ける
             elif mode == 'user':
                 return 1
             elif mode == 'local_angle':
@@ -232,7 +231,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
                 self.last_num_rec_print = num_records
 
                 if num_records % 10 == 0:
-                    print("recorded", num_records, "records")
+                    print(f"{num_records} 件のレコードを保存しました")
 
                 if num_records % cfg.REC_COUNT_ALERT == 0 or self.force_alert:
                     self.dur_alert = num_records // cfg.REC_COUNT_ALERT * cfg.REC_COUNT_ALERT_CYC
@@ -275,32 +274,32 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
     def load_model(kl, model_path):
         start = time.time()
-        print('loading model', model_path)
+        print('モデルを読み込み中', model_path)
         kl.load(model_path)
-        print('finished loading in %s sec.' % (str(time.time() - start)) )
+        print('読み込み完了 %s 秒' % (str(time.time() - start)))
 
     def load_weights(kl, weights_path):
         start = time.time()
         try:
-            print('loading model weights', weights_path)
+            print('モデルの重みを読み込み中', weights_path)
             kl.model.load_weights(weights_path)
-            print('finished loading in %s sec.' % (str(time.time() - start)) )
+            print('読み込み完了 %s 秒' % (str(time.time() - start)))
         except Exception as e:
             print(e)
-            print('ERR>> problems loading weights', weights_path)
+            print('ERR>> 重みの読み込みに失敗しました', weights_path)
 
     def load_model_json(kl, json_fnm):
         start = time.time()
-        print('loading model json', json_fnm)
+        print('モデル JSON を読み込み中', json_fnm)
         from tensorflow.python import keras
         try:
             with open(json_fnm, 'r') as handle:
                 contents = handle.read()
                 kl.model = keras.models.model_from_json(contents)
-            print('finished loading json in %s sec.' % (str(time.time() - start)) )
+            print('JSON の読み込み完了 %s 秒' % (str(time.time() - start)))
         except Exception as e:
             print(e)
-            print("ERR>> problems loading model json", json_fnm)
+            print("ERR>> モデル JSON の読み込みに失敗しました", json_fnm)
 
     #
     # load and configure model for inference
@@ -339,7 +338,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
             model_reload_cb = reload_weights
 
         else:
-            print("ERR>> Unknown extension type on model file!!")
+            print("ERR>> モデルファイルの拡張子が不明です!!")
             return
 
         # this part will signal visual LED, if connected
@@ -558,11 +557,11 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
 
     if cfg.DONKEY_GYM:
-        print("You can now go to http://localhost:%d to drive your car." % cfg.WEB_CONTROL_PORT)
+        print("http://localhost:%d にアクセスすると車を操縦できます。" % cfg.WEB_CONTROL_PORT)
     else:
-        print("You can now go to <your hostname.local>:%d to drive your car." % cfg.WEB_CONTROL_PORT)
+        print("<your hostname.local>:%d にアクセスすると車を操縦できます。" % cfg.WEB_CONTROL_PORT)
     if has_input_controller:
-        print("You can now move your controller to drive your car.")
+        print("コントローラーを操作すると車を運転できます。")
         if isinstance(ctr, JoystickController):
             ctr.set_tub(tub_writer.tub)
             ctr.print_controls()
@@ -573,9 +572,7 @@ def drive(cfg, model_path=None, use_joystick=False, model_type=None,
 
 class ToggleRecording:
     def __init__(self, auto_record_on_throttle, record_in_autopilot):
-        """
-        Donkeycar Part that manages the recording state.
-        """
+        """録画状態を管理する Donkeycar のパーツ。"""
         self.auto_record_on_throttle = auto_record_on_throttle
         self.record_in_autopilot = record_in_autopilot
         self.recording_latch: bool = None
@@ -583,24 +580,26 @@ class ToggleRecording:
         self.last_recording = None
 
     def set_recording(self, recording: bool):
-        """
-        Set latched recording value to be applied on next call to run()
-        :param recording: True to record, False to not record
+        """次回 ``run()`` で適用する録画状態を設定する。
+
+        Args:
+            recording: ``True`` で録画、``False`` で停止。
         """
         self.recording_latch = recording
 
     def toggle_recording(self):
-        """
-        Force toggle of recording state on next call to run()
-        """
+        """次回 ``run()`` 実行時に録画状態を強制的に反転させる。"""
         self.toggle_latch = True
 
     def run(self, mode: str, recording: bool):
-        """
-        Set recording based on user/autopilot mode
-        :param mode: 'user'|'local_angle'|'local_pilot'
-        :param recording: current recording flag
-        :return: updated recording flag
+        """ユーザーモードと自動運転モードに応じて録画状態を更新する。
+
+        Args:
+            mode: ``'user'``、``'local_angle'``、``'local_pilot'`` のいずれか。
+            recording: 現在の録画フラグ。
+
+        Returns:
+            更新後の録画フラグ。
         """
         recording_in = recording
         if recording_in != self.last_recording:
@@ -632,23 +631,28 @@ class ToggleRecording:
 
 class DriveMode:
     def __init__(self, ai_throttle_mult=1.0):
-        """
-        :param ai_throttle_mult: scale throttle in autopilot mode
+        """初期化処理。
+
+        Args:
+            ai_throttle_mult: 自動運転モード時にスロットルへ乗算する倍率。
         """
         self.ai_throttle_mult = ai_throttle_mult
 
     def run(self, mode,
             user_steering, user_throttle,
             pilot_steering, pilot_throttle):
-        """
-        Main final steering and throttle values based on user mode
-        :param mode: 'user'|'local_angle'|'local_pilot'
-        :param user_steering: steering value in user (manual) mode
-        :param user_throttle: throttle value in user (manual) mode
-        :param pilot_steering: steering value in autopilot mode
-        :param pilot_throttle: throttle value in autopilot mode
-        :return: tuple of (steering, throttle) where throttle is
-                 scaled by ai_throttle_mult in autopilot mode
+        """ユーザーのモードに応じて最終的なステアリングとスロットルを決定する。
+
+        Args:
+            mode: ``'user'``、``'local_angle'``、``'local_pilot'`` のいずれか。
+            user_steering: マニュアル操作時のステアリング値。
+            user_throttle: マニュアル操作時のスロットル値。
+            pilot_steering: 自動運転時のステアリング値。
+            pilot_throttle: 自動運転時のスロットル値。
+
+        Returns:
+            ``(steering, throttle)`` のタプル。自動運転時は ``ai_throttle_mult``
+            を掛けたスロットルを返す。
         """
         if mode == 'user':
             return user_steering, user_throttle
@@ -660,19 +664,24 @@ class DriveMode:
 
 class UserPilotCondition:
     def __init__(self, show_pilot_image:bool = False) -> None:
-        """
-        :param show_pilot_image:bool True to show pilot image in pilot mode
-                                     False to show user image in pilot mode
+        """初期化処理。
+
+        Args:
+            show_pilot_image: ``True`` ならパイロットモードで推論画像を表示し、
+                ``False`` ならユーザー画像を表示する。
         """
         self.show_pilot_image = show_pilot_image
 
     def run(self, mode, user_image, pilot_image):
-        """
-        Maintain run condition and which image to show in web ui
-        :param mode: 'user'|'local_angle'|'local_pilot'
-        :param user_image: image to show in manual (user) pilot
-        :param pilot_image: image to show in auto pilot
-        :return: tuple of (user-condition, autopilot-condition, web image)
+        """実行条件と Web UI に表示する画像を決定する。
+
+        Args:
+            mode: ``'user'``、``'local_angle'``、``'local_pilot'`` のいずれか。
+            user_image: 手動運転時に表示する画像。
+            pilot_image: 自動運転時に表示する画像。
+
+        Returns:
+            ``(user-condition, autopilot-condition, web image)`` のタプル。
         """
         if mode == 'user':
             return True, False, user_image
@@ -681,13 +690,14 @@ class UserPilotCondition:
 
 
 def add_user_controller(V, cfg, use_joystick, input_image='ui/image_array'):
-    """
-    Add the web controller and any other
-    configured user input controller.
-    :param V: the vehicle pipeline.
-              On output this will be modified.
-    :param cfg: the configuration (from myconfig.py)
-    :return: the controller
+    """Web コントローラーおよびその他の入力デバイスを追加する。
+
+    Args:
+        V: 車両のパイプライン。呼び出し後に変更される。
+        cfg: ``myconfig.py`` から読み込んだ設定。
+
+    Returns:
+        使用するコントローラー。
     """
 
     #
@@ -788,9 +798,7 @@ def add_simulator(V, cfg):
 
 
 def get_camera(cfg):
-    """
-    Get the configured camera part
-    """
+    """設定に基づいたカメラパーツを取得する。"""
     cam = None
     if not cfg.DONKEY_GYM:
         if cfg.CAMERA_TYPE == "PICAM":
@@ -827,12 +835,11 @@ def get_camera(cfg):
 
 
 def add_camera(V, cfg, camera_type):
-    """
-    Add the configured camera to the vehicle pipeline.
+    """設定されたカメラを車両のパイプラインに追加する。
 
-    :param V: the vehicle pipeline.
-              On output this will be modified.
-    :param cfg: the configuration (from myconfig.py)
+    Args:
+        V: 車両のパイプライン。呼び出し後に変更される。
+        cfg: ``myconfig.py`` から読み込んだ設定。
     """
     logger.info("cfg.CAMERA_TYPE %s"%cfg.CAMERA_TYPE)
     if camera_type == "stereo":
@@ -887,12 +894,11 @@ def add_camera(V, cfg, camera_type):
 
 
 def add_odometry(V, cfg, threaded=True):
-    """
-    If the configuration support odometry, then
-    add encoders, odometry and kinematics to the vehicle pipeline
-    :param V: the vehicle pipeline.
-              On output this may be modified.
-    :param cfg: the configuration (from myconfig.py)
+    """オドメトリが有効な場合にエンコーダやキネマティクスを追加する。
+
+    Args:
+        V: 車両のパイプライン。必要に応じて変更される。
+        cfg: ``myconfig.py`` から読み込んだ設定。
     """
     from donkeycar.parts.pose import BicyclePose, UnicyclePose
 
@@ -911,6 +917,7 @@ def add_odometry(V, cfg, threaded=True):
 # IMU setup
 #
 def add_imu(V, cfg):
+    """IMU パーツを追加する。"""
     imu = None
     if cfg.HAVE_IMU:
         from donkeycar.parts.imu import IMU
@@ -926,7 +933,7 @@ def add_imu(V, cfg):
 # Drive train setup
 #
 def add_drivetrain(V, cfg):
-
+    """駆動系のパーツを設定する。"""
     if (not cfg.DONKEY_GYM) and cfg.DRIVE_TRAIN_TYPE != "MOCK":
         from donkeycar.parts import actuator, pins
         from donkeycar.parts.actuator import TwoWheelSteeringThrottle
@@ -1144,4 +1151,4 @@ if __name__ == '__main__':
               model_type=model_type, camera_type=camera_type,
               meta=args['--meta'])
     elif args['train']:
-        print('Use python train.py instead.\n')
+        print('代わりに python train.py を使用してください。\n')

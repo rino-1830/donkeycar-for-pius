@@ -1,40 +1,33 @@
 #!/usr/bin/env python3
-"""
-Scripts to record a path by driving a donkey car
-and using an autopilot to drive the recoded path.
-Works with wheel encoders and/or Intel T265
+"""ドンキーカーで走行しながら経路を記録し、
+オートパイロットでその経路を辿るためのスクリプト。
+ホイールエンコーダーや Intel T265 に対応。
 
 Usage:
     manage.py (drive) [--js] [--log=INFO] [--camera=(single|stereo)]
- 
+
 
 Options:
-    -h --help          Show this screen.
-    --js               Use physical joystick.
-    -f --file=<file>   A text file containing paths to tub files, one per line. Option may be used more than once.
-    --meta=<key:value> Key/Value strings describing describing a piece of meta data about this drive. Option may be used more than once.
+    -h --help          この画面を表示する。
+    --js               物理ジョイスティックを使用する。
+    -f --file=<file>   1 行につき 1 つの tub ファイルへのパスを含むテキストファイル。複数回指定可能。
+    --meta=<key:value> この走行に関するメタ情報を表すキーと値の文字列。複数回指定可能。
 
-Starts in user mode.
-- The user flow to 'train' a path.   
-  - start "python manage.py drive" 
-  - This starts in user mode; so user is in manual drive mode 
-    driving records path waypoints.
-  - drive to record a path; make the start and end close to each other.
-  - if you don't like path, select the reset button and it will
-    reset the origin _AND_ erase the path from memory.  MOve the
-    vehicle back to where the physical origin is and start driving
-    again to record a new path.
-  - if you like the path, select the save button to save it. 
-- The user flow for autopilot:  
-  - record or load a path (select load button) 
-  - select auto-pilot mode using joystick or web ui.  The
-    vehicle will start trying to follow the recorded path.
-  - switch back user model to stop autopilot.
-  - to restart using the saved path; 
-    - select reset button; this will erase path and reset origin 
-    - select load button to load path
-    - put the car back at the physical origin.
-
+起動時はユーザーモード。
+- 経路を"学習"する手順:
+  - ``python manage.py drive`` を実行。
+  - ユーザーモードで開始されるので手動運転しながらウェイポイントを記録。
+  - スタート地点とゴール地点はなるべく近づけて経路を記録。
+  - 経路が気に入らない場合はリセットボタンを押すと、原点をリセットし経路をメモリから消去。車両を物理的な原点に戻して再度記録開始。
+  - 経路が気に入ったらセーブボタンを押して保存。
+- オートパイロットの手順:
+  - 経路を記録するか読み込む(ロードボタンを選択)。
+  - ジョイスティックまたは Web UI からオートパイロットモードを選択すると、車両は記録済みの経路を走行し始める。
+  - ユーザーモードに戻すとオートパイロットを停止。
+  - 保存済み経路を再利用するには次の操作を行う:
+    - リセットボタンで経路を消去し原点をリセット。
+    - ロードボタンで経路を読み込む。
+    - 車両を物理的な原点に戻す。
 
 """
 from distutils.log import debug
@@ -42,8 +35,8 @@ import os
 import logging
 
 #
-# import cv2 early to avoid issue with importing after tensorflow
-# see https://github.com/opencv/opencv/issues/14884#issuecomment-599852128
+# tensorflow の後にインポートすると問題が起きるのを避けるため、早めに cv2 をインポートする
+# 詳細は https://github.com/opencv/opencv/issues/14884#issuecomment-599852128 を参照
 #
 import time
 
@@ -72,26 +65,31 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 def drive(cfg, use_joystick=False, camera_type='single'):
-    '''
-    Construct a working robotic vehicle from many parts.
-    Each part runs as a job in the Vehicle loop, calling either
-    it's run or run_threaded method depending on the constructor flag
-    `threaded`.  All parts are updated one after another at the framerate given
-    in cfg.DRIVE_LOOP_HZ assuming each part finishes processing in a timely
-    manner. Parts may have named outputs and inputs. The framework handles
-    passing named outputs to parts requesting the same named input.
-    '''
+    """複数のパーツからロボット車両を組み立てて走行させる。
+
+    それぞれのパーツは Vehicle ループ内でジョブとして実行され、コンストラクター
+    の ``threaded`` フラグによって ``run`` か ``run_threaded`` が呼び出される。
+    すべてのパーツは ``cfg.DRIVE_LOOP_HZ`` で指定されたフレームレートで順に更新さ
+    れ、各パーツがタイムリーに処理を終えることを前提としている。パーツは出力名と
+    入力名を持つことができ、フレームワークが同名の入出力を自動的に接続する。
+
+    Args:
+        cfg: 設定オブジェクト。
+        use_joystick (bool): ジョイスティックを使うかどうか。
+        camera_type (str): ``single`` または ``stereo`` を指定。
+
+    """
 
     is_differential_drive = cfg.DRIVE_TRAIN_TYPE.startswith("DC_TWO_WHEEL")
 
-    #Initialize car
+    # 車両オブジェクトを初期化
     V = dk.vehicle.Vehicle()
 
     if cfg.HAVE_SOMBRERO:
         from donkeycar.utils import Sombrero
         s = Sombrero()
    
-    #Initialize logging before anything else to allow console logging
+    # コンソールログ用にロギングを初期化
     if cfg.HAVE_CONSOLE_LOGGING:
         logger.setLevel(logging.getLevelName(cfg.LOGGING_LEVEL))
         ch = logging.StreamHandler()
@@ -103,28 +101,28 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         tel = MqttTelemetry(cfg)
 
     #
-    # if we are using the simulator, set it up
+    # シミュレータを使用する場合はここで設定
     #
     add_simulator(V, cfg)
 
     #
-    # IMU
+    # IMU 設定
     #
     add_imu(V, cfg)
 
     #
-    # odometry/tachometer/speed control
+    # オドメトリ・タコメータ・速度制御
     #
     if cfg.HAVE_ODOM:
         #
-        # setup encoders, odometry and pose estimation
+        # エンコーダ・オドメトリ・姿勢推定を設定
         #
         add_odometry(V, cfg)
     else:
-        # we give the T265 no calib to indicated we don't have odom
+        # オドメトリが無いことを示すため T265 にはキャリブレーションを渡さない
         cfg.WHEEL_ODOM_CALIB = None
 
-        #This dummy part to satisfy input needs of RS_T265 part.
+        # RS_T265 パーツの入力要件を満たすためのダミーパーツ
         class NoOdom():
             def run(self):
                 return 0.0
@@ -134,77 +132,75 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     if cfg.HAVE_T265:
         from donkeycar.parts.realsense2 import RS_T265
         if cfg.HAVE_ODOM and not os.path.exists(cfg.WHEEL_ODOM_CALIB):
-            print("You must supply a json file when using odom with T265. "
-                  "There is a sample file in templates.")
+            print("T265 でオドメトリを使用する場合は json ファイルが必要です。"
+                  "テンプレートにサンプルがあります。")
             print("cp donkeycar/donkeycar/templates/calibration_odometry.json .")
             exit(1)
 
         #
-        # NOTE: image output on the T265 is broken in the python API and
-        #       will never get fixed, so not image output from T265
+        # 注意: T265 の画像出力は Python API では壊れており修正されないため、画像は出力できない
         #
         rs = RS_T265(image_output=False, calib_filename=cfg.WHEEL_ODOM_CALIB, device_id=cfg.REALSENSE_T265_ID)
         V.add(rs, inputs=['enc/vel_m_s'], outputs=['rs/pos', 'rs/vel', 'rs/acc'], threaded=True)
 
         #
-        # Pull out the realsense T265 position stream, output 2d coordinates we can use to map.
-        # Transform the T265 augmented reality coordinate system into a traditional
-        # top-down POSE coordinate system where east is positive-x and north is positive-y.
+        # realsense T265 の位置ストリームから 2 次元座標を取り出してマップに使用する。
+        # T265 の AR 座標系を、東が正の X、北が正の Y となる一般的な上から見た POSE 座標系に変換する。
         #
         class PosStream:
             def run(self, pos):
-                #y is up, x is right, z is backwards/forwards (negative going forwards)
+                # y: 上向き, x: 右向き, z: 前後(前進が負)
                 return -pos.z, -pos.x
 
         V.add(PosStream(), inputs=['rs/pos'], outputs=['pos/x', 'pos/y'])
 
     #
-    # gps outputs ['pos/x', 'pos/y']
+    # GPS の出力 ['pos/x', 'pos/y']
     #
     gps_player = add_gps(V, cfg)
 
     #
-    # setup primary camera
+    # メインカメラを設定
     #
     add_camera(V, cfg, camera_type)
 
     #
-    # add the user input controller(s)
-    # - this will add the web controller
-    # - it will optionally add any configured 'joystick' controller
+    # ユーザー入力コントローラーを追加
+    # - Web コントローラーを追加する
+    # - 設定されていればジョイスティックコントローラーも追加
     #
     has_input_controller = hasattr(cfg, "CONTROLLER_TYPE") and cfg.CONTROLLER_TYPE != "mock"
     ctr = add_user_controller(V, cfg, use_joystick, input_image = 'map/image')
 
     #
-    # explode the web buttons into their own key/values in memory
+    # Web ボタンを個別のキーと値に展開
     #
     V.add(ExplodeDict(V.mem, "web/"), inputs=['web/buttons'])
 
     #
-    # This part will reset the car back to the origin. You must put the car in the known origin
-    # and push the cfg.RESET_ORIGIN_BTN on your controller. This will allow you to induce an offset
-    # in the mapping.
+    # このパーツは車両を原点にリセットする。既知の原点に車両を置き、
+    # コントローラーの ``cfg.RESET_ORIGIN_BTN`` を押すとマッピングにオフセットを
+    # 与えることができる。
     #
     origin_reset = OriginOffset(cfg.PATH_DEBUG)
     V.add(origin_reset, inputs=['pos/x', 'pos/y', 'cte/closest_pt'], outputs=['pos/x', 'pos/y', 'cte/closest_pt'])
 
 
     #
-    # maintain run conditions for user mode and autopilot mode parts.
+    # ユーザーモードとオートパイロットモードの実行条件を維持
     #
     V.add(UserPilotCondition(),
           inputs=['user/mode', "cam/image_array", "cam/image_array"],
           outputs=['run_user', "run_pilot", "ui/image_array"])
 
 
-    # This is the path object. It will record a path when distance changes and it travels
-    # at least cfg.PATH_MIN_DIST meters. Except when we are in follow mode, see below...
+    # 経路オブジェクト。距離が変化し、かつ ``cfg.PATH_MIN_DIST`` メートル以上進むと経路を記録する。
+    # フォローモード時は記録しない（詳細は後述）。
     path = CsvThrottlePath(min_dist=cfg.PATH_MIN_DIST)
     V.add(path, inputs=['recording', 'pos/x', 'pos/y', 'user/throttle'], outputs=['path', 'throttles'])
 
     #
-    # log pose
+    # 姿勢をログに記録
     #
     # if cfg.DONKEY_GYM:
     #     lpos = LoggerPart(inputs=['dist/left', 'dist/right', 'dist', 'pos/pos_x', 'pos/pos_y', 'yaw'], level="INFO", logger="simulator")
@@ -221,66 +217,64 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     def save_path():
         if path.length() > 0:
             if path.save(cfg.PATH_FILENAME):
-                print("That path was saved to ", cfg.PATH_FILENAME)
+                print("その経路を {} に保存しました".format(cfg.PATH_FILENAME))
 
-                # save any recorded gps readings
+                # 記録された GPS データも保存
                 if gps_player:
                     gps_player.nmea.save()
             else:
-                print("The path could NOT be saved; check the PATH_FILENAME in myconfig.py to make sure it is a legal path")
+                print("経路を保存できませんでした。myconfig.py の PATH_FILENAME が正しいか確認してください")
         else:
-            print("There is no path to save; try recording the path.")
+            print("保存する経路がありません。まず経路を記録してください")
 
     def load_path():
         if os.path.exists(cfg.PATH_FILENAME) and path.load(cfg.PATH_FILENAME):
-           print("The path was loaded was loaded from ", cfg.PATH_FILENAME)
+           print("経路を {} から読み込みました".format(cfg.PATH_FILENAME))
 
-           # we loaded the path; also load any recorded gps readings
+           # 経路を読み込んだので、保存されていた GPS データも読み込む
            if gps_player:
                gps_player.stop().nmea.load()
                gps_player.start()
         else:
-           print("path _not_ loaded; make sure you have saved a path.")
+           print("経路を読み込めませんでした。事前に保存されているか確認してください")
 
     def erase_path():
         origin_reset.reset_origin()
         if path.reset():
-            print("The origin and the path were reset; you are ready to record a new path.")
+            print("原点と経路をリセットしました。新しい経路を記録できます")
             if gps_player:
                 gps_player.stop().nmea.reset()
         else:
-            print("The origin was reset; you are ready to record a new path.")
+            print("原点をリセットしました。新しい経路を記録できます")
 
     def reset_origin():
-        """
-        Reset effective pose to (0, 0)
-        """
+        """有効な姿勢を (0, 0) にリセットする。"""
         origin_reset.reset_origin()
-        print("The origin was reset to the current position.")
+        print("現在位置を原点としてリセットしました")
 
-        # restart any recorded gps readings from the start.
+        # 記録されていた GPS データを最初から再生し直す
         if gps_player:
             gps_player.start()
 
 
-    # When a path is loaded, we will be in follow mode. We will not record.
+    # 経路が読み込まれている場合はフォローモードになり、記録は行わない
     if os.path.exists(cfg.PATH_FILENAME):
         load_path()
 
-    # Here's an image we can map to.
+    # マッピング用の画像オブジェクト
     img = PImage(clear_each_frame=True)
     V.add(img, outputs=['map/image'])
 
-    # This PathPlot will draw path on the image
+    # PathPlot は画像上に経路を描画する
 
     plot = PathPlot(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET)
     V.add(plot, inputs=['map/image', 'path'], outputs=['map/image'])
 
-    # This will use path and current position to output cross track error
+    # 経路と現在位置からクロストラックエラーを計算
     cte = CTE(look_ahead=cfg.PATH_LOOK_AHEAD, look_behind=cfg.PATH_LOOK_BEHIND, num_pts=cfg.PATH_SEARCH_LENGTH)
     V.add(cte, inputs=['path', 'pos/x', 'pos/y', 'cte/closest_pt'], outputs=['cte/error', 'cte/closest_pt'], run_condition='run_pilot')
 
-    # This will use the cross track error and PID constants to try to steer back towards the path.
+    # クロストラックエラーと PID 定数を用いて経路へ復帰するよう操舵を計算
     pid = PIDController(p=cfg.PID_P, i=cfg.PID_I, d=cfg.PID_D)
     pilot = PID_Pilot(pid, cfg.PID_THROTTLE, cfg.USE_CONSTANT_THROTTLE, min_throttle=cfg.PID_THROTTLE)
     V.add(pilot, inputs=['cte/error', 'throttles', 'cte/closest_pt'], outputs=['pilot/steering', 'pilot/throttle'], run_condition="run_pilot")
@@ -307,81 +301,76 @@ def drive(cfg, use_joystick=False, camera_type='single'):
 
 
     #
-    # Add buttons for handling various user actions
-    # The button names are in configuration.
-    # They may refer to game controller (joystick) buttons OR web ui buttons
-    #
-    # There are 5 programmable webui buttons, "web/w1" to "web/w5"
-    # adding a button handler for a webui button
-    # is just adding a part with a run_condition set to
-    # the button's name, so it runs when button is pressed.
+    # ユーザー操作を扱うボタン類を追加する
+    # ボタン名は設定で決まり、ゲームコントローラー(ジョイスティック)または
+    # Web UI のボタンを指す。Web UI には ``web/w1`` 〜 ``web/w5`` の 5 つの
+    # プログラム可能なボタンがあり、run_condition にボタン名を設定したパーツを
+    # 追加するだけで、押されたときにそのパーツが実行される。
     #
     have_joystick = ctr is not None and isinstance(ctr, JoystickController)
 
-    # Here's a trigger to save the path. Complete one circuit of your course, when you
-    # have exactly looped, or just shy of the loop, then save the path and shutdown
-    # this process. Restart and the path will be loaded.
+    # 経路を保存するトリガー。コースを一周したら保存してプロセスを終了し、
+    # 再起動すると経路が読み込まれる。
     if cfg.SAVE_PATH_BTN:
-        print(f"Save path button is {cfg.SAVE_PATH_BTN}")
+        print(f"保存ボタンは {cfg.SAVE_PATH_BTN} です")
         if cfg.SAVE_PATH_BTN.startswith("web/w"):
             V.add(Lambda(lambda: save_path()), run_condition=cfg.SAVE_PATH_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.SAVE_PATH_BTN, save_path)
 
-    # allow controller to (re)load the path
+    # コントローラーから経路を再読み込みできるようにする
     if cfg.LOAD_PATH_BTN:
-        print(f"Load path button is {cfg.LOAD_PATH_BTN}")
+        print(f"ロードボタンは {cfg.LOAD_PATH_BTN} です")
         if cfg.LOAD_PATH_BTN.startswith("web/w"):
             V.add(Lambda(lambda: load_path()), run_condition=cfg.LOAD_PATH_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.LOAD_PATH_BTN, load_path)
 
-    # Here's a trigger to erase a previously saved path.
-    # This erases the path in memory; it does NOT erase any saved path file
+    # 保存済み経路をメモリから消去するトリガー。ファイルは削除しない
     if cfg.ERASE_PATH_BTN:
-        print(f"Erase path button is {cfg.ERASE_PATH_BTN}")
+        print(f"消去ボタンは {cfg.ERASE_PATH_BTN} です")
         if cfg.ERASE_PATH_BTN.startswith("web/w"):
             V.add(Lambda(lambda: erase_path()), run_condition=cfg.ERASE_PATH_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.ERASE_PATH_BTN, erase_path)
 
-    # Here's a trigger to reset the origin based on the current position
+    # 現在位置を基準に原点をリセットするトリガー
     if cfg.RESET_ORIGIN_BTN:
-        print(f"Reset origin button is {cfg.RESET_ORIGIN_BTN}")
+        print(f"原点リセットボタンは {cfg.RESET_ORIGIN_BTN} です")
         if cfg.RESET_ORIGIN_BTN.startswith("web/w"):
             V.add(Lambda(lambda: reset_origin()), run_condition=cfg.RESET_ORIGIN_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.RESET_ORIGIN_BTN, reset_origin)
 
-    # button to toggle recording
+    # 記録のオンオフを切り替えるボタン
     if cfg.TOGGLE_RECORDING_BTN:
-        print(f"Toggle recording button is {cfg.TOGGLE_RECORDING_BTN}")
+        print(f"録画切替ボタンは {cfg.TOGGLE_RECORDING_BTN} です")
         if cfg.TOGGLE_RECORDING_BTN.startswith("web/w"):
             V.add(Lambda(lambda: recording_control.toggle_recording()), run_condition=cfg.TOGGLE_RECORDING_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.TOGGLE_RECORDING_BTN, recording_control.toggle_recording)
 
-    # Buttons to tune PID constants
+    # PID 定数を調整するボタン群
     if cfg.DEC_PID_P_BTN and cfg.PID_P_DELTA:
-        print(f"Decrement PID P button is {cfg.DEC_PID_P_BTN}")
+        print(f"PID P 減少ボタンは {cfg.DEC_PID_P_BTN} です")
         if cfg.DEC_PID_P_BTN.startswith("web/w"):
             V.add(Lambda(lambda: dec_pid_p()), run_condition=cfg.DEC_PID_P_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.DEC_PID_P_BTN, dec_pid_p)
     if cfg.INC_PID_P_BTN and cfg.PID_P_DELTA:
-        print(f"Increment PID P button is {cfg.INC_PID_P_BTN}")
+        print(f"PID P 増加ボタンは {cfg.INC_PID_P_BTN} です")
         if cfg.INC_PID_P_BTN.startswith("web/w"):
             V.add(Lambda(lambda: inc_pid_p()), run_condition=cfg.INC_PID_P_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.INC_PID_P_BTN, inc_pid_p)
     if cfg.DEC_PID_D_BTN and cfg.PID_D_DELTA:
-        print(f"Decrement PID D button is {cfg.DEC_PID_D_BTN}")
+        print(f"PID D 減少ボタンは {cfg.DEC_PID_D_BTN} です")
         if cfg.DEC_PID_D_BTN.startswith("web/w"):
             V.add(Lambda(lambda: dec_pid_d()), run_condition=cfg.DEC_PID_D_BTN)
         elif have_joystick:
             ctr.set_button_down_trigger(cfg.DEC_PID_D_BTN, dec_pid_d)
     if cfg.INC_PID_D_BTN and cfg.PID_D_DELTA:
-        print(f"Increment PID D button is {cfg.INC_PID_D_BTN}")
+        print(f"PID D 増加ボタンは {cfg.INC_PID_D_BTN} です")
         if cfg.INC_PID_D_BTN.startswith("web/w"):
             V.add(Lambda(lambda: inc_pid_d()), run_condition=cfg.INC_PID_D_BTN)
         elif have_joystick:
@@ -389,8 +378,7 @@ def drive(cfg, use_joystick=False, camera_type='single'):
 
 
     #
-    # Decide what inputs should change the car's steering and throttle
-    # based on the choice of user or autopilot drive mode
+    # ユーザーモードかオートパイロットかに応じて、操舵とスロットルの入力源を選択
     #
     V.add(DriveMode(cfg.AI_THROTTLE_MULT),
           inputs=['user/mode', 'user/steering', 'user/throttle',
@@ -400,8 +388,7 @@ def drive(cfg, use_joystick=False, camera_type='single'):
     # V.add(LoggerPart(['user/mode', 'steering', 'throttle'], logger="drivemode"), inputs=['user/mode', 'steering', 'throttle'])
 
     #
-    # To make differential drive steer,
-    # divide throttle between motors based on the steering value
+    # 差動駆動で旋回するため、操舵量に応じて左右モーターのスロットルを分配
     #
     if is_differential_drive:
         V.add(TwoWheelSteeringThrottle(),
@@ -409,13 +396,13 @@ def drive(cfg, use_joystick=False, camera_type='single'):
             outputs=['left/throttle', 'right/throttle'])
 
     #
-    # Setup drivetrain
+    # ドライブトレインをセットアップ
     #
     add_drivetrain(V, cfg)
 
 
     #
-    # OLED display setup
+    # OLED ディスプレイの設定
     #
     if cfg.USE_SSD1306_128_32:
         from donkeycar.parts.oled import OLEDPart
@@ -424,12 +411,12 @@ def drive(cfg, use_joystick=False, camera_type='single'):
         V.add(oled_part, inputs=['recording', 'tub/num_records', 'user/mode'], outputs=[], threaded=True)
 
 
-    # Print Joystick controls
+    # ジョイスティックの操作方法を表示
     if ctr is not None and isinstance(ctr, JoystickController):
         ctr.print_controls()
 
     #
-    # draw a map image as the vehicle moves
+    # 車両の動きを地図画像に描画
     #
     loc_plot = PlotCircle(scale=cfg.PATH_SCALE, offset=cfg.PATH_OFFSET, color = "blue")
     V.add(loc_plot, inputs=['map/image', 'pos/x', 'pos/y'], outputs=['map/image'], run_condition='run_pilot')
@@ -443,6 +430,16 @@ def drive(cfg, use_joystick=False, camera_type='single'):
 
 
 def add_gps(V, cfg):
+    """GPS パーツを追加する。
+
+    Args:
+        V: ``Vehicle`` インスタンス。
+        cfg: 設定オブジェクト。
+
+    Returns:
+        Optional[GpsPlayer]: 録音した NMEA データを再生するためのプレーヤー。
+    """
+
     if cfg.HAVE_GPS:
         from donkeycar.parts.serial_port import SerialPort, SerialLineReader
         from donkeycar.parts.gps import GpsNmeaPositions, GpsLatestPosition, GpsPlayer
@@ -450,30 +447,30 @@ def add_gps(V, cfg):
         from donkeycar.parts.text_writer import CsvLogger
 
         #
-        # parts to
-        # - read nmea lines from serial port
-        # - OR play from recorded file
-        # - convert nmea lines to positions
-        # - retrieve the most recent position
+        # 以下のパーツを構成する
+        # - シリアルポートから NMEA ラインを読み取る
+        # - または記録済みファイルを再生する
+        # - NMEA ラインを位置情報に変換する
+        # - 最新の位置を取得する
         #
         serial_port = SerialPort(cfg.GPS_SERIAL, cfg.GPS_SERIAL_BAUDRATE)
         nmea_reader = SerialLineReader(serial_port)
         V.add(nmea_reader, outputs=['gps/nmea'], threaded=True)
 
-        # part to save nmea sentences for later playback
+        # NMEA 文章を保存して後で再生できるようにするパート
         nmea_player = None
         if cfg.GPS_NMEA_PATH:
             nmea_writer = CsvLogger(cfg.GPS_NMEA_PATH, separator='\t', field_count=2)
-            V.add(nmea_writer, inputs=['recording', 'gps/nmea'], outputs=['gps/recorded/nmea'])  # only record nmea sentences in user mode
+            V.add(nmea_writer, inputs=['recording', 'gps/nmea'], outputs=['gps/recorded/nmea'])  # ユーザーモード時のみ NMEA を記録
             nmea_player = GpsPlayer(nmea_writer)
-            V.add(nmea_player, inputs=['run_pilot', 'gps/nmea'], outputs=['gps/playing', 'gps/nmea'])  # only play nmea sentences in autopilot mode
+            V.add(nmea_player, inputs=['run_pilot', 'gps/nmea'], outputs=['gps/playing', 'gps/nmea'])  # オートパイロット時のみ再生
 
         gps_positions = GpsNmeaPositions(debug=cfg.GPS_DEBUG)
         V.add(gps_positions, inputs=['gps/nmea'], outputs=['gps/positions'])
         gps_latest_position = GpsLatestPosition(debug=cfg.GPS_DEBUG)
         V.add(gps_latest_position, inputs=['gps/positions'], outputs=['gps/timestamp', 'gps/utm/longitude', 'gps/utm/latitude'])
 
-        # rename gps utm position to pose values
+        # GPS UTM 座標を姿勢の値としてリネーム
         V.add(Pipe(), inputs=['gps/utm/longitude', 'gps/utm/latitude'], outputs=['pos/x', 'pos/y'])
 
         return nmea_player
@@ -486,7 +483,7 @@ if __name__ == '__main__':
     log_level = args['--log'] or "INFO"
     numeric_level = getattr(logging, log_level.upper(), None)
     if not isinstance(numeric_level, int):
-        raise ValueError('Invalid log level: %s' % log_level)
+        raise ValueError('無効なログレベル: %s' % log_level)
     logging.basicConfig(level=numeric_level)
 
 
