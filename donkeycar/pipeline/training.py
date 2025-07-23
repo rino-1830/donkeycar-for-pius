@@ -7,8 +7,7 @@ from tensorflow.python.keras.models import load_model
 
 from donkeycar.config import Config
 from donkeycar.parts.keras import KerasPilot
-from donkeycar.parts.interpreter import keras_model_to_tflite, \
-    saved_model_to_tensor_rt
+from donkeycar.parts.interpreter import keras_model_to_tflite, saved_model_to_tensor_rt
 from donkeycar.pipeline.database import PilotDatabase
 from donkeycar.pipeline.sequence import TubRecord, TubSequence, TfmIterator
 from donkeycar.pipeline.types import TubDataset
@@ -20,37 +19,34 @@ import numpy as np
 
 
 class BatchSequence(object):
-    """
-    The idea is to have a shallow sequence with types that can hydrate
-    themselves to np.ndarray initially and later into the types required by
-    tf.data (i.e. dictionaries or np.ndarrays).
-    """
-    def __init__(self,
-                 model: KerasPilot,
-                 config: Config,
-                 records: List[TubRecord],
-                 is_train: bool) -> None:
+    """tf.data 用のシンプルなシーケンスを作成するクラス。"""
+
+    def __init__(
+        self,
+        model: KerasPilot,
+        config: Config,
+        records: List[TubRecord],
+        is_train: bool,
+    ) -> None:
         self.model = model
         self.config = config
         self.sequence = TubSequence(records)
         self.batch_size = self.config.BATCH_SIZE
         self.is_train = is_train
-        self.augmentation = ImageAugmentation(config, 'AUGMENTATIONS')
-        self.transformation = ImageTransformations(config, 'TRANSFORMATIONS')
-        self.post_transformation = ImageTransformations(config,
-                                                        'POST_TRANSFORMATIONS')
+        self.augmentation = ImageAugmentation(config, "AUGMENTATIONS")
+        self.transformation = ImageTransformations(config, "TRANSFORMATIONS")
+        self.post_transformation = ImageTransformations(config, "POST_TRANSFORMATIONS")
         self.pipeline = self._create_pipeline()
 
     def __len__(self) -> int:
+        """データセットのバッチ数を返す。"""
         return math.ceil(len(self.pipeline) / self.batch_size)
 
     def image_processor(self, img_arr):
-        """ Transforms the image and augments it if in training. We are not
-        calling the normalisation here, because then the normalised images
-        would get cached in the TubRecord, and they are 8 times larger (as
-        they are 64bit floats and not uint8) """
-        assert img_arr.dtype == np.uint8, \
-            f"image_processor requires uint8 array but not {img_arr.dtype}"
+        """画像変換と学習時のオーグメンテーションを行う。"""
+        assert (
+            img_arr.dtype == np.uint8
+        ), f"image_processor は uint8 配列のみを受け付けます: {img_arr.dtype}"
         img_arr = self.transformation.run(img_arr)
         if self.is_train:
             img_arr = self.augmentation.run(img_arr)
@@ -59,37 +55,40 @@ class BatchSequence(object):
         return img_arr
 
     def _create_pipeline(self) -> TfmIterator:
-        """ This can be overridden if more complicated pipelines are
-            required """
-        # 1. Initialise TubRecord -> x, y transformations
+        """必要に応じてオーバーライド可能なパイプライン生成処理。"""
+
+        # 1. TubRecord から x, y への変換を初期化
         def get_x(record: TubRecord) -> Dict[str, Union[float, np.ndarray]]:
-            """ Extracting x from record for training"""
+            """学習用の ``x`` を取得する。"""
             out_dict = self.model.x_transform(record, self.image_processor)
-            # apply the normalisation here on the fly to go from uint8 -> float
-            out_dict['img_in'] = normalize_image(out_dict['img_in'])
+            # ここで正規化を行い uint8 から float へ変換する
+            out_dict["img_in"] = normalize_image(out_dict["img_in"])
             return out_dict
 
         def get_y(record: TubRecord) -> Dict[str, Union[float, np.ndarray]]:
-            """ Extracting y from record for training """
+            """学習用の ``y`` を取得する。"""
             y = self.model.y_transform(record)
             return y
 
-        # 2. Build pipeline using the transformations
-        pipeline = self.sequence.build_pipeline(x_transform=get_x,
-                                                y_transform=get_y)
+        # 2. 変換を使ってパイプラインを構築
+        pipeline = self.sequence.build_pipeline(x_transform=get_x, y_transform=get_y)
         return pipeline
 
     def create_tf_data(self) -> tf.data.Dataset:
-        """ Assembles the tf data pipeline """
+        """tf.data パイプラインを構築する。"""
         dataset = tf.data.Dataset.from_generator(
             generator=lambda: self.pipeline,
             output_types=self.model.output_types(),
-            output_shapes=self.model.output_shapes())
+            output_shapes=self.model.output_shapes(),
+        )
         return dataset.repeat().batch(self.batch_size)
 
 
-def get_model_train_details(database: PilotDatabase, model: str = None) \
-        -> Tuple[str, int]:
+def get_model_train_details(
+    database: PilotDatabase, model: str = None
+) -> Tuple[str, int]:
+    """モデル名と通し番号を取得する。"""
+
     if not model:
         model_name, model_num = database.generate_model_name()
     else:
@@ -97,17 +96,19 @@ def get_model_train_details(database: PilotDatabase, model: str = None) \
     return model_name, model_num
 
 
-def train(cfg: Config, tub_paths: str, model: str = None,
-          model_type: str = None, transfer: str = None, comment: str = None) \
-        -> tf.keras.callbacks.History:
-    """
-    Train the model
-    """
+def train(
+    cfg: Config,
+    tub_paths: str,
+    model: str = None,
+    model_type: str = None,
+    transfer: str = None,
+    comment: str = None,
+) -> tf.keras.callbacks.History:
+    """モデルを学習する。"""
     database = PilotDatabase(cfg)
     if model_type is None:
         model_type = cfg.DEFAULT_MODEL_TYPE
-    model_path, model_num = \
-        get_model_train_details(database, model)
+    model_path, model_num = get_model_train_details(database, model)
 
     base_path = os.path.splitext(model_path)[0]
     kl = get_model_by_type(model_type, cfg)
@@ -116,21 +117,23 @@ def train(cfg: Config, tub_paths: str, model: str = None,
     if cfg.PRINT_MODEL_SUMMARY:
         print(kl.interpreter.summary())
 
-    tubs = tub_paths.split(',')
+    tubs = tub_paths.split(",")
     all_tub_paths = [os.path.expanduser(tub) for tub in tubs]
-    dataset = TubDataset(config=cfg, tub_paths=all_tub_paths,
-                         seq_size=kl.seq_size())
-    training_records, validation_records \
-        = train_test_split(dataset.get_records(), shuffle=True,
-                           test_size=(1. - cfg.TRAIN_TEST_SPLIT))
-    print(f'Records # Training {len(training_records)}')
-    print(f'Records # Validation {len(validation_records)}')
+    dataset = TubDataset(config=cfg, tub_paths=all_tub_paths, seq_size=kl.seq_size())
+    training_records, validation_records = train_test_split(
+        dataset.get_records(), shuffle=True, test_size=(1.0 - cfg.TRAIN_TEST_SPLIT)
+    )
+    print(f"学習データ数 {len(training_records)}")
+    print(f"検証データ数 {len(validation_records)}")
 
-    # We need augmentation in validation when using crop / trapeze
+    # クロップや台形マスクを使用する場合は検証時にもオーグメンテーションが必要
 
-    if 'fastai_' in model_type:
-        from donkeycar.parts.pytorch.torch_data \
-            import TorchTubDataset, get_default_transform
+    if "fastai_" in model_type:
+        from donkeycar.parts.pytorch.torch_data import (
+            TorchTubDataset,
+            get_default_transform,
+        )
+
         transform = get_default_transform(resize=False)
         dataset_train = TorchTubDataset(cfg, training_records, transform=transform)
         dataset_validate = TorchTubDataset(cfg, validation_records, transform=transform)
@@ -146,43 +149,46 @@ def train(cfg: Config, tub_paths: str, model: str = None,
         train_size = len(training_pipe)
         val_size = len(validation_pipe)
 
-    assert val_size > 0, "Not enough validation data, decrease the batch " \
-                         "size or add more data."
+    assert (
+        val_size > 0
+    ), "検証データが不足しています。バッチサイズを減らすかデータを追加してください。"
 
-    history = kl.train(model_path=model_path,
-                       train_data=dataset_train,
-                       train_steps=train_size,
-                       batch_size=cfg.BATCH_SIZE,
-                       validation_data=dataset_validate,
-                       validation_steps=val_size,
-                       epochs=cfg.MAX_EPOCHS,
-                       verbose=cfg.VERBOSE_TRAIN,
-                       min_delta=cfg.MIN_DELTA,
-                       patience=cfg.EARLY_STOP_PATIENCE,
-                       show_plot=cfg.SHOW_PLOT)
+    history = kl.train(
+        model_path=model_path,
+        train_data=dataset_train,
+        train_steps=train_size,
+        batch_size=cfg.BATCH_SIZE,
+        validation_data=dataset_validate,
+        validation_steps=val_size,
+        epochs=cfg.MAX_EPOCHS,
+        verbose=cfg.VERBOSE_TRAIN,
+        min_delta=cfg.MIN_DELTA,
+        patience=cfg.EARLY_STOP_PATIENCE,
+        show_plot=cfg.SHOW_PLOT,
+    )
 
-    if getattr(cfg, 'CREATE_TF_LITE', True):
-        tf_lite_model_path = f'{base_path}.tflite'
+    if getattr(cfg, "CREATE_TF_LITE", True):
+        tf_lite_model_path = f"{base_path}.tflite"
         keras_model_to_tflite(model_path, tf_lite_model_path)
 
-    if getattr(cfg, 'CREATE_TENSOR_RT', False):
-        # load h5 (ie. keras) model
+    if getattr(cfg, "CREATE_TENSOR_RT", False):
+        # h5 (Keras) モデルを読み込み
         model_rt = load_model(model_path)
-        # save in tensorflow savedmodel format (i.e. directory)
-        model_rt.save(f'{base_path}.savedmodel')
-        # pass savedmodel to the rt converter
-        saved_model_to_tensor_rt(f'{base_path}.savedmodel', f'{base_path}.trt')
+        # TensorFlow の SavedModel 形式で保存する（ディレクトリ）
+        model_rt.save(f"{base_path}.savedmodel")
+        # SavedModel を TensorRT へ変換
+        saved_model_to_tensor_rt(f"{base_path}.savedmodel", f"{base_path}.trt")
 
     database_entry = {
-        'Number': model_num,
-        'Name': os.path.basename(base_path),
-        'Type': str(kl),
-        'Tubs': tub_paths,
-        'Time': time(),
-        'History': history,
-        'Transfer': os.path.basename(transfer) if transfer else None,
-        'Comment': comment,
-        'Config': str(cfg)
+        "Number": model_num,
+        "Name": os.path.basename(base_path),
+        "Type": str(kl),
+        "Tubs": tub_paths,
+        "Time": time(),
+        "History": history,
+        "Transfer": os.path.basename(transfer) if transfer else None,
+        "Comment": comment,
+        "Config": str(cfg),
     }
     database.add_entry(database_entry)
     database.write()

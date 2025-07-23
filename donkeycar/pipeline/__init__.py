@@ -1,1 +1,1 @@
-# The new donkey car training pipeline.
+# 新しいDonkeyCarのトレーニングパイプライン。

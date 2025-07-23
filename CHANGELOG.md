@@ -1,5 +1,10 @@
 # 変更履歴
 
+## 翻訳: pipeline モジュールの日本語化
+- `donkeycar/pipeline` 配下の全 Python ファイルのコメント、表示メッセージ、docstring を日本語化
+- すべての主要なクラス・関数に Google スタイルの docstring を追加
+- コードフォーマットを整備
+
 ## fix: 未翻訳コメント追加翻訳
 - `donkeycar/parts/actuator.py` の残っていた英語コメントと Docstring を日本語化
 
